@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  RECITER
+}
+
+model User {
+  id          String   @id @default(cuid())
+  username    String   @unique
+  displayName String
+  password    String
+  role        Role     @default(RECITER)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  attendances SessionAttendee[]
+  evaluations ReciterEvaluation[]
+}
+
+model Kalaam {
+  id        String    @id @default(cuid())
+  title     String
+  poet      String?
+  language  String?   @default("Urdu")
+  lyrics    String?
+  createdAt DateTime  @default(now())
+
+  sessions  Session[]
+}
+
+model LehenType {
+  id       String    @id @default(cuid())
+  name     String    @unique
+
+  sessions Session[]
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  date        DateTime
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  kalaamId    String
+  kalaam      Kalaam    @relation(fields: [kalaamId], references: [id])
+
+  lehenTypeId String?
+  lehenType   LehenType? @relation(fields: [lehenTypeId], references: [id])
+  lehenNotes  String?
+
+  attendees   SessionAttendee[]
+  evaluations ReciterEvaluation[]
+}
+
+model SessionAttendee {
+  id        String  @id @default(cuid())
+  sessionId String
+  userId    String
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+}
+
+model ReciterEvaluation {
+  id            String   @id @default(cuid())
+  sessionId     String
+  userId        String
+  ranking       Int?
+  voiceRange    String?
+  audioFileKey  String?
+  audioFileName String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  session       Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user          User    @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+}
+
