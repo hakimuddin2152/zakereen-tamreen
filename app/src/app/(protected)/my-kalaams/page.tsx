@@ -13,19 +13,24 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 type KalaamStatus = "Ready" | "InProgress" | "AttendedPractice";
 
+interface SessionRef {
+  id: string;
+  date: Date;
+}
+
 interface KalaamEntry {
   kalaamId: string;
   kalaamTitle: string;
   kalaamCategory: string;
   status: KalaamStatus;
-  latestSessionDate: Date;
+  sessions: SessionRef[];
   latestRanking: number | null;
   lehenDone: boolean;
   hifzDone: boolean;
 }
 
 async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, KalaamEntry[]>> {
-  // Step 1: all sessions the user attended (session id + date)
+  // Step 1: all sessions the user attended
   const attended = await db.sessionAttendee.findMany({
     where: { userId },
     select: { sessionId: true, session: { select: { id: true, date: true } } },
@@ -34,9 +39,9 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
   if (attended.length === 0) return { Ready: [], InProgress: [], AttendedPractice: [] };
 
   const sessionIds = attended.map((a) => a.session.id);
-  const sessionDateById = new Map(attended.map((a) => [a.session.id, a.session.date]));
+  const sessionById = new Map(attended.map((a) => [a.session.id, a.session]));
 
-  // Step 2: all kalaams that appeared in those sessions (flat query, no nested filter)
+  // Step 2: all kalaams in those sessions
   const sessionKalaams = await db.sessionKalaam.findMany({
     where: { sessionId: { in: sessionIds } },
     include: { kalaam: { select: { id: true, title: true, category: true } } },
@@ -44,20 +49,20 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
 
   if (sessionKalaams.length === 0) return { Ready: [], InProgress: [], AttendedPractice: [] };
 
-  // Step 3: all evaluations for this user across those sessions (flat, direct query)
+  // Step 3: all evaluations for this user across those sessions
   const evaluations = await db.reciterEvaluation.findMany({
     where: { userId, sessionId: { in: sessionIds } },
   });
   const evalBySessionId = new Map(evaluations.map((e) => [e.sessionId, e]));
 
-  // Step 4: build per-kalaam data — track latest session date and latest evaluated ranking
+  // Step 4: build per-kalaam data — collect ALL sessions and track latest eval
   const kalaamMap = new Map<
     string,
     {
       kalaamId: string;
       kalaamTitle: string;
       kalaamCategory: string;
-      latestSessionDate: Date;
+      sessions: SessionRef[];
       latestEvalDate: Date | null;
       latestEvalRanking: number | null;
       hasEval: boolean;
@@ -65,7 +70,7 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
   >();
 
   for (const sk of sessionKalaams) {
-    const sessionDate = sessionDateById.get(sk.sessionId)!;
+    const sess = sessionById.get(sk.sessionId)!;
     const ev = evalBySessionId.get(sk.sessionId) ?? null;
     const kId = sk.kalaam.id;
     const existing = kalaamMap.get(kId);
@@ -75,26 +80,29 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
         kalaamId: kId,
         kalaamTitle: sk.kalaam.title,
         kalaamCategory: sk.kalaam.category,
-        latestSessionDate: sessionDate,
-        latestEvalDate: ev ? sessionDate : null,
+        sessions: [{ id: sess.id, date: sess.date }],
+        latestEvalDate: ev ? sess.date : null,
         latestEvalRanking: ev?.ranking ?? null,
         hasEval: ev !== null,
       });
     } else {
-      // Keep the most recent session date for display
-      if (sessionDate > existing.latestSessionDate) {
-        existing.latestSessionDate = sessionDate;
+      if (!existing.sessions.find((s) => s.id === sess.id)) {
+        existing.sessions.push({ id: sess.id, date: sess.date });
       }
-      // Use the evaluation whose session is most recent
       if (
         ev !== null &&
-        (existing.latestEvalDate === null || sessionDate > existing.latestEvalDate)
+        (existing.latestEvalDate === null || sess.date > existing.latestEvalDate)
       ) {
-        existing.latestEvalDate = sessionDate;
+        existing.latestEvalDate = sess.date;
         existing.latestEvalRanking = ev.ranking ?? null;
         existing.hasEval = true;
       }
     }
+  }
+
+  // Sort sessions newest first
+  for (const data of kalaamMap.values()) {
+    data.sessions.sort((a, b) => b.date.getTime() - a.date.getTime());
   }
 
   // Step 5: prerequisites
@@ -112,7 +120,7 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
       kalaamId: data.kalaamId,
       kalaamTitle: data.kalaamTitle,
       kalaamCategory: data.kalaamCategory,
-      latestSessionDate: data.latestSessionDate,
+      sessions: data.sessions,
       latestRanking: data.latestEvalRanking,
       lehenDone: prereq?.lehenDone ?? false,
       hifzDone: prereq?.hifzDone ?? false,
@@ -157,26 +165,63 @@ function PrereqBadge({ done, label }: { done: boolean; label: string }) {
   );
 }
 
-function KalaamCard({ entry }: { entry: KalaamEntry }) {
+function SessionList({ sessions }: { sessions: SessionRef[] }) {
   return (
-    <Link href={`/kalaams/${entry.kalaamId}`}>
-      <div className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-accent/50 transition-colors cursor-pointer">
-        <div>
+    <div className="mt-2 pl-1 flex flex-col gap-1">
+      <p className="text-muted-foreground text-xs font-medium">
+        Practiced in {sessions.length} session{sessions.length !== 1 ? "s" : ""}:
+      </p>
+      {sessions.map((s) => (
+        <Link
+          key={s.id}
+          href={`/sessions/${s.id}`}
+          className="text-xs text-primary hover:underline w-fit"
+        >
+          → {formatDate(s.date)}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function KalaamCard({ entry }: { entry: KalaamEntry }) {
+  if (entry.status === "AttendedPractice") {
+    return (
+      <div className="px-5 py-4">
+        <Link href={`/kalaams/${entry.kalaamId}`} className="hover:underline">
           <p className="text-foreground font-medium">{entry.kalaamTitle}</p>
+        </Link>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <Badge variant="secondary" className="text-xs">
+            {CATEGORY_LABELS[entry.kalaamCategory] ?? entry.kalaamCategory}
+          </Badge>
+          <PrereqBadge done={entry.lehenDone} label="Lehen" />
+          <PrereqBadge done={entry.hifzDone} label="Hifz" />
+        </div>
+        <SessionList sessions={entry.sessions} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <Link href={`/kalaams/${entry.kalaamId}`} className="hover:underline">
+            <p className="text-foreground font-medium">{entry.kalaamTitle}</p>
+          </Link>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <Badge variant="secondary" className="text-xs">
               {CATEGORY_LABELS[entry.kalaamCategory] ?? entry.kalaamCategory}
             </Badge>
-            <span className="text-muted-foreground text-xs">
-              {formatDate(entry.latestSessionDate)}
-            </span>
             <PrereqBadge done={entry.lehenDone} label="Lehen" />
             <PrereqBadge done={entry.hifzDone} label="Hifz" />
           </div>
+          <SessionList sessions={entry.sessions} />
         </div>
         <StarRating value={entry.latestRanking} />
       </div>
-    </Link>
+    </div>
   );
 }
 
