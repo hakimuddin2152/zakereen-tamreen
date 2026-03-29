@@ -3,9 +3,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
 function createPrismaClient() {
+  const connectionString = process.env.DATABASE_URL!;
+  const isRemote = !connectionString.includes("localhost") && !connectionString.includes("127.0.0.1");
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL!,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+    connectionString,
+    ssl: isRemote ? { rejectUnauthorized: false } : undefined,
   });
   const adapter = new PrismaPg(pool);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
