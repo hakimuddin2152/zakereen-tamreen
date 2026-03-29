@@ -51,10 +51,10 @@ export function ReciterActions({ reciterId, isActive, displayName, currentGrade 
       const res = await fetch(`/api/reciters/${reciterId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ grade: pendingGrade || null }),
+        body: JSON.stringify({ grade: pendingGrade === "none" ? null : pendingGrade || null }),
       });
       if (!res.ok) throw new Error("Failed to set grade");
-      toast.success(`Grade ${pendingGrade || "cleared"} for ${displayName}`);
+      toast.success(`Grade ${pendingGrade === "none" ? "cleared" : pendingGrade} for ${displayName}`);
       setGradeOpen(false);
       router.refresh();
     } catch {
@@ -156,7 +156,7 @@ export function ReciterActions({ reciterId, isActive, displayName, currentGrade 
                 <SelectValue placeholder="No grade" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No grade</SelectItem>
+                <SelectItem value="none">No grade</SelectItem>
                 <SelectItem value="A">A — Excellent</SelectItem>
                 <SelectItem value="B">B — Good</SelectItem>
                 <SelectItem value="C">C — Average</SelectItem>

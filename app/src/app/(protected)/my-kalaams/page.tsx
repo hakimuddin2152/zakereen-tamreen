@@ -286,10 +286,10 @@ export default async function MyKalaamsPage() {
           emptyText="No kalaams in progress."
         />
         <Section
-          title="Attended Practice"
+          title="Need More Practice"
           items={AttendedPractice}
           badgeClass="bg-blue-600/20 text-blue-400 border-blue-600/30"
-          emptyText="You haven't attended any sessions yet."
+          emptyText="No Kalaams to show here. Kalaams will appear here after you attend a practice session but don't meet the requirements to recite that kalaam due to low ranking or pending prerequisites."
         />
       </div>
     </div>
