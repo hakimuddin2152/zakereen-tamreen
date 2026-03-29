@@ -11,11 +11,16 @@ export function DbHealthCheck() {
         if (data.db === "connected") {
           toast.success("DB connected", { duration: 3000 });
         } else {
-          toast.error(`DB error: ${data.message ?? "unreachable"}`, { duration: 0 });
+          console.error("[DbHealthCheck] error:", data);
+          toast.error(`DB error: ${data.message ?? "unreachable"}`, {
+            duration: 0,
+            description: data.stack ? data.stack.split("\n").slice(0, 3).join(" | ") : undefined,
+          });
         }
       })
-      .catch(() => {
-        toast.error("DB unreachable", { duration: 0 });
+      .catch((err) => {
+        console.error("[DbHealthCheck] fetch failed:", err);
+        toast.error(`DB unreachable: ${err.message}`, { duration: 0 });
       });
   }, []);
 
