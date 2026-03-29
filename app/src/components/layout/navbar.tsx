@@ -37,9 +37,8 @@ export function Navbar({ user }: NavbarProps) {
     <nav className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <span className="text-primary font-bold text-lg">زاکرین</span>
-            <span className="text-muted-foreground text-sm hidden sm:block">Tamreen</span>
+          <Link href="/dashboard" className="flex items-center gap-1.5">
+            <span className="text-primary font-bold text-lg" dir="rtl">زاکرین تمرین</span>
           </Link>
           <div className="flex items-center gap-1">
             {navLinks.map((link) => (
