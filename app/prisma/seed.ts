@@ -2,7 +2,10 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+});
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = new (PrismaClient as any)({ adapter }) as InstanceType<typeof PrismaClient>;
 
