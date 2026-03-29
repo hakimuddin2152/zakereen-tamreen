@@ -6,7 +6,12 @@ import { toast } from "sonner";
 export function DbHealthCheck() {
   useEffect(() => {
     fetch("/api/health")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok && res.status === 307) {
+          throw new Error(`Redirected (307) — middleware blocked the request`);
+        }
+        return res.json();
+      })
       .then((data) => {
         if (data.db === "connected") {
           toast.success("DB connected", { duration: 3000 });
