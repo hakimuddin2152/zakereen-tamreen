@@ -20,13 +20,18 @@ interface NavbarProps {
 
 export function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
-  const isAdmin = user.role === "ADMIN";
+  const isPrivileged = user.role === "ADMIN" || user.role === "GOD";
+  const isGod = user.role === "GOD";
 
   const navLinks = [
-    { href: "/dashboard", label: "Dashboard" },
-    ...(isAdmin ? [{ href: "/reciters", label: "Reciters" }] : []),
-    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
+    { href: "/kalaams", label: "Kalaams" },
+    { href: "/my-kalaams", label: "My Kalaams" },
+    { href: "/sessions", label: "Sessions" },
+    ...(isPrivileged ? [{ href: "/admin/members", label: "Members" }] : []),
+    ...(isGod ? [{ href: "/admin/users", label: "Users" }] : []),
   ];
+
+  const roleLabel = isGod ? "God" : isPrivileged ? "Admin" : "Member";
 
   return (
     <nav className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-50">
@@ -68,9 +73,9 @@ export function Navbar({ user }: NavbarProps) {
               </span>
               <Badge
                 variant="outline"
-                className={`text-xs hidden sm:block ${isAdmin ? "border-primary text-primary" : ""}`}
+                className={`text-xs hidden sm:block ${isPrivileged ? "border-primary text-primary" : ""}`}
               >
-                {isAdmin ? "Admin" : "Reciter"}
+                {roleLabel}
               </Badge>
             </Button>
           </DropdownMenuTrigger>

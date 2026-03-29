@@ -6,13 +6,13 @@ import { createReciterSchema, updateReciterSchema } from "@/lib/validations";
 
 export async function GET() {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const reciters = await db.user.findMany({
     orderBy: { displayName: "asc" },
-    select: { id: true, username: true, displayName: true, role: true, isActive: true, createdAt: true },
+    select: { id: true, username: true, displayName: true, partyName: true, role: true, grade: true, isActive: true, createdAt: true },
   });
 
   return NextResponse.json(reciters);
@@ -20,7 +20,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { username, displayName, password } = parsed.data;
+  const { username, displayName, partyName, password } = parsed.data;
 
   const existing = await db.user.findUnique({ where: { username } });
   if (existing) {
@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
 
   const hashedPassword = await hash(password, 12);
   const user = await db.user.create({
-    data: { username, displayName, password: hashedPassword, role: "RECITER" },
-    select: { id: true, username: true, displayName: true, role: true, isActive: true, createdAt: true },
+    data: { username, displayName, partyName: partyName ?? null, password: hashedPassword, role: "PARTY_MEMBER" },
+    select: { id: true, username: true, displayName: true, partyName: true, role: true, grade: true, isActive: true, createdAt: true },
   });
 
   return NextResponse.json(user, { status: 201 });

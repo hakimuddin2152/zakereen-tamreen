@@ -21,18 +21,48 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Props {
   reciterId: string;
   isActive: boolean;
   displayName: string;
+  currentGrade?: string;
 }
 
-export function ReciterActions({ reciterId, isActive, displayName }: Props) {
+export function ReciterActions({ reciterId, isActive, displayName, currentGrade }: Props) {
   const router = useRouter();
   const [resetOpen, setResetOpen] = useState(false);
+  const [gradeOpen, setGradeOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [settingGrade, setSettingGrade] = useState(false);
+  const [pendingGrade, setPendingGrade] = useState<string>(currentGrade ?? "");
+
+  async function handleSetGrade() {
+    setSettingGrade(true);
+    try {
+      const res = await fetch(`/api/reciters/${reciterId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grade: pendingGrade || null }),
+      });
+      if (!res.ok) throw new Error("Failed to set grade");
+      toast.success(`Grade ${pendingGrade || "cleared"} for ${displayName}`);
+      setGradeOpen(false);
+      router.refresh();
+    } catch {
+      toast.error("Failed to set grade");
+    } finally {
+      setSettingGrade(false);
+    }
+  }
 
   async function toggleActive() {
     setToggling(true);
@@ -90,6 +120,12 @@ export function ReciterActions({ reciterId, isActive, displayName }: Props) {
         <DropdownMenuContent align="end">
           <DropdownMenuItem
             className="cursor-pointer"
+            onClick={() => { setPendingGrade(currentGrade ?? ""); setGradeOpen(true); }}
+          >
+            Set Grade
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer"
             onClick={() => setResetOpen(true)}
           >
             Reset Password
@@ -104,6 +140,38 @@ export function ReciterActions({ reciterId, isActive, displayName }: Props) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={gradeOpen} onOpenChange={setGradeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Grade — {displayName}</DialogTitle>
+            <DialogDescription>
+              Assign a performance grade to this member.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <Label>Grade</Label>
+            <Select value={pendingGrade} onValueChange={setPendingGrade}>
+              <SelectTrigger>
+                <SelectValue placeholder="No grade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">No grade</SelectItem>
+                <SelectItem value="A">A — Excellent</SelectItem>
+                <SelectItem value="B">B — Good</SelectItem>
+                <SelectItem value="C">C — Average</SelectItem>
+                <SelectItem value="D">D — Needs work</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGradeOpen(false)}>Cancel</Button>
+            <Button onClick={handleSetGrade} disabled={settingGrade}>
+              {settingGrade ? "Saving…" : "Save Grade"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent>

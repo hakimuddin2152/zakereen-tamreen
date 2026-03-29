@@ -8,58 +8,95 @@ datasource db {
 }
 
 enum Role {
+  GOD
   ADMIN
-  RECITER
+  PARTY_MEMBER
+}
+
+enum KalaamCategory {
+  MARASIYA
+  SALAAM
+  MADEH
+  MISC
+}
+
+enum MemberGrade {
+  A
+  B
+  C
+  D
 }
 
 model User {
-  id          String   @id @default(cuid())
-  username    String   @unique
+  id          String       @id @default(cuid())
+  username    String       @unique
   displayName String
+  partyName   String?
   password    String
-  role        Role     @default(RECITER)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  role        Role         @default(PARTY_MEMBER)
+  grade       MemberGrade?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
-  attendances SessionAttendee[]
-  evaluations ReciterEvaluation[]
+  attendances   SessionAttendee[]
+  evaluations   ReciterEvaluation[]
+  prerequisites KalaamPrerequisite[]
 }
 
 model Kalaam {
-  id        String    @id @default(cuid())
-  title     String
-  poet      String?
-  language  String?   @default("Urdu")
-  lyrics    String?
-  createdAt DateTime  @default(now())
+  id            String         @id @default(cuid())
+  title         String
+  category      KalaamCategory @default(MISC)
+  recitedBy     String?
+  pdfLink       String?
+  audioFileKey  String?
+  audioFileName String?
+  highestNote   String?
+  lowestNote    String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  sessions  Session[]
-}
-
-model LehenType {
-  id       String    @id @default(cuid())
-  name     String    @unique
-
-  sessions Session[]
+  sessionKalaams SessionKalaam[]
+  prerequisites  KalaamPrerequisite[]
 }
 
 model Session {
-  id          String    @id @default(cuid())
-  date        DateTime
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  kalaamId    String
-  kalaam      Kalaam    @relation(fields: [kalaamId], references: [id])
-
-  lehenTypeId String?
-  lehenType   LehenType? @relation(fields: [lehenTypeId], references: [id])
-  lehenNotes  String?
-
+  kalaams     SessionKalaam[]
   attendees   SessionAttendee[]
   evaluations ReciterEvaluation[]
+}
+
+model SessionKalaam {
+  id        String  @id @default(cuid())
+  sessionId String
+  kalaamId  String
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kalaam    Kalaam  @relation(fields: [kalaamId], references: [id])
+
+  @@unique([sessionId, kalaamId])
+}
+
+model KalaamPrerequisite {
+  id        String  @id @default(cuid())
+  userId    String
+  kalaamId  String
+  lehenDone Boolean @default(false)
+  hifzDone  Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kalaam    Kalaam @relation(fields: [kalaamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kalaamId])
 }
 
 model SessionAttendee {

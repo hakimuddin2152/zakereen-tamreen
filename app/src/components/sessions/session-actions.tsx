@@ -25,7 +25,7 @@ export function SessionActions({ sessionId }: { sessionId: string }) {
       const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete");
       toast.success("Session deleted");
-      router.push("/dashboard");
+      router.push("/sessions");
     } catch {
       toast.error("Failed to delete session");
     } finally {

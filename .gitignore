@@ -1,0 +1,11 @@
+# Next.js build output
+app/.next/
+
+# Dependencies
+app/node_modules/
+
+# Env files (handled by app/.gitignore too, belt-and-suspenders)
+app/.env*
+
+# OS
+.DS_Store

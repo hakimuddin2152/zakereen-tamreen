@@ -3,13 +3,21 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createKalaamSchema } from "@/lib/validations";
 
-export async function GET() {
+function isPrivileged(role?: string) {
+  return role === "ADMIN" || role === "GOD";
+}
+
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { searchParams } = new URL(req.url);
+  const category = searchParams.get("category");
+
   const kalaams = await db.kalaam.findMany({
     orderBy: { title: "asc" },
-    include: { _count: { select: { sessions: true } } },
+    where: category ? { category: category as "MARASIYA" | "SALAAM" | "MADEH" | "MISC" } : undefined,
+    include: { _count: { select: { sessionKalaams: true } } },
   });
 
   return NextResponse.json(kalaams);
@@ -17,7 +25,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isPrivileged(session?.user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -33,13 +41,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const kalaam = await db.kalaam.create({ data: parsed.data });
+  const { pdfLink, ...rest } = parsed.data;
+  const kalaam = await db.kalaam.create({
+    data: { ...rest, pdfLink: pdfLink || null },
+  });
   return NextResponse.json(kalaam, { status: 201 });
 }
 
 export async function DELETE(req: NextRequest) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isPrivileged(session?.user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -47,7 +58,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const linked = await db.session.count({ where: { kalaamId: id } });
+  const linked = await db.sessionKalaam.count({ where: { kalaamId: id } });
   if (linked > 0) {
     return NextResponse.json(
       { error: `Cannot delete — used in ${linked} session${linked !== 1 ? "s" : ""}` },

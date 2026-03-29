@@ -1,16 +1,35 @@
 import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
 
+function isPrivileged(role?: string) {
+  return role === "ADMIN" || role === "GOD";
+}
+
 export const authConfig: NextAuthConfig = {
+  session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [],
   callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as { role: string }).role;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+      }
+      return session;
+    },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isLoginPage = nextUrl.pathname === "/login";
 
       if (isLoginPage) {
-        if (isLoggedIn) return NextResponse.redirect(new URL("/dashboard", nextUrl));
+        if (isLoggedIn) return NextResponse.redirect(new URL("/kalaams", nextUrl));
         return true;
       }
 
@@ -18,12 +37,20 @@ export const authConfig: NextAuthConfig = {
         return NextResponse.redirect(new URL("/login", nextUrl));
       }
 
-      // Admin-only paths
-      const isAdminPath = nextUrl.pathname.startsWith("/admin") ||
-        nextUrl.pathname.startsWith("/reciters") && nextUrl.pathname !== `/reciters/${auth?.user?.id}`;
+      const role = (auth?.user as { role?: string })?.role;
 
-      if (isAdminPath && (auth?.user as { role?: string })?.role !== "ADMIN") {
-        return NextResponse.redirect(new URL("/dashboard", nextUrl));
+      // Admin-only paths
+      const isAdminPath =
+        nextUrl.pathname.startsWith("/admin") ||
+        nextUrl.pathname === "/reciters";
+
+      if (isAdminPath && !isPrivileged(role)) {
+        return NextResponse.redirect(new URL("/kalaams", nextUrl));
+      }
+
+      // God-only paths
+      if (nextUrl.pathname.startsWith("/admin/users") && role !== "GOD") {
+        return NextResponse.redirect(new URL("/kalaams", nextUrl));
       }
 
       return true;

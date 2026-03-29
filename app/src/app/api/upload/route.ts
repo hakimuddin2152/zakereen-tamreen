@@ -6,7 +6,7 @@ import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { contentType, contentLength, sessionId, userId } = parsed.data;
+  const { contentType, contentLength, context, sessionId, userId, kalaamId } = parsed.data;
 
   const validationError = validateAudioUpload(contentType, contentLength);
   if (validationError) {
@@ -30,8 +30,15 @@ export async function POST(req: NextRequest) {
   }
 
   const ext = contentType.split("/")[1]?.replace("mpeg", "mp3") ?? "audio";
-  const fileKey = `sessions/${sessionId}/${userId}/${randomUUID()}.${ext}`;
-  const uploadUrl = await getPresignedUploadUrl(fileKey, contentType);
+  let fileKey: string;
+  if (context === "kalaam" && kalaamId) {
+    fileKey = `kalaams/${kalaamId}/${randomUUID()}.${ext}`;
+  } else if (context === "session" && sessionId && userId) {
+    fileKey = `sessions/${sessionId}/${userId}/${randomUUID()}.${ext}`;
+  } else {
+    return NextResponse.json({ error: "Invalid upload context" }, { status: 400 });
+  }
 
+  const uploadUrl = await getPresignedUploadUrl(fileKey, contentType);
   return NextResponse.json({ uploadUrl, fileKey });
 }

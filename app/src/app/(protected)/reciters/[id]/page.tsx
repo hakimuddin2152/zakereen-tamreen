@@ -22,10 +22,10 @@ function StarRating({ value }: { value: number | null }) {
 export default async function ReciterProfilePage({ params }: Props) {
   const { id } = await params;
   const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
 
-  // Reciters can only view their own profile
-  if (!isAdmin && session?.user?.id !== id) redirect("/dashboard");
+  // Members can only view their own profile
+  if (!isAdmin && session?.user?.id !== id) redirect("/kalaams");
 
   const reciter = await db.user.findUnique({
     where: { id },
@@ -35,8 +35,7 @@ export default async function ReciterProfilePage({ params }: Props) {
         include: {
           session: {
             include: {
-              kalaam: { select: { title: true } },
-              lehenType: { select: { name: true } },
+              kalaams: { include: { kalaam: { select: { id: true, title: true, category: true } } } },
             },
           },
         },
@@ -62,11 +61,20 @@ export default async function ReciterProfilePage({ params }: Props) {
           >
             {reciter.isActive ? "Active" : "Inactive"}
           </Badge>
-          {reciter.role === "ADMIN" && (
-            <Badge variant="outline">Admin</Badge>
+          {reciter.role !== "PARTY_MEMBER" && (
+            <Badge variant="outline">{reciter.role === "GOD" ? "God" : "Admin"}</Badge>
           )}
         </div>
         <p className="text-muted-foreground text-sm">@{reciter.username}</p>
+        {reciter.partyName && (
+          <p className="text-muted-foreground text-sm">{reciter.partyName}</p>
+        )}
+        {reciter.grade && (
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-muted-foreground text-sm">Overall Grade:</span>
+            <Badge className="font-bold text-base px-3">{reciter.grade}</Badge>
+          </div>
+        )}
 
         {avgRanking !== null && (
           <div className="mt-3 flex items-center gap-2">
@@ -101,7 +109,7 @@ export default async function ReciterProfilePage({ params }: Props) {
             audioFileKey: string | null;
             audioFileName: string | null;
             notes: string | null;
-            session: { date: Date; kalaam: { title: string }; lehenType: { name: string } | null };
+            session: { date: Date; kalaams: { kalaam: { id: string; title: string; category: string } }[] };
           }) => (
               <div key={ev.id} className="px-5 py-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -110,14 +118,11 @@ export default async function ReciterProfilePage({ params }: Props) {
                       <span className="text-muted-foreground text-xs font-mono">
                         {formatDate(ev.session.date)}
                       </span>
-                      {ev.session.lehenType && (
-                        <Badge
-                          variant="outline"
-                          className="text-xs"
-                        >
-                          {ev.session.lehenType.name}
+                      {ev.session.kalaams.slice(0, 2).map((sk) => (
+                        <Badge key={sk.kalaam.id} variant="secondary" className="text-xs">
+                          {sk.kalaam.category}
                         </Badge>
-                      )}
+                      ))}
                       {ev.voiceRange && (
                         <Badge
                           variant="outline"
@@ -127,7 +132,9 @@ export default async function ReciterProfilePage({ params }: Props) {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-foreground font-medium">{ev.session.kalaam.title}</p>
+                    <p className="text-foreground font-medium">
+                      {ev.session.kalaams.map((sk) => sk.kalaam.title).join(" · ")}
+                    </p>
                     <div className="mt-1 flex items-center gap-3">
                       <StarRating value={ev.ranking} />
                       {ev.notes && (

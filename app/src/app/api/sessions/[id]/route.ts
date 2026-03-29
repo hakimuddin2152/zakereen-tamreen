@@ -13,8 +13,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const dbSession = await db.session.findUnique({
     where: { id },
     include: {
-      kalaam: true,
-      lehenType: true,
+      kalaams: { include: { kalaam: true } },
       attendees: { include: { user: { select: { id: true, displayName: true } } } },
       evaluations: true,
     },
@@ -26,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -44,34 +43,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { date, kalaamId, kalaamTitle, lehenTypeId, lehenNotes, notes, attendeeIds } = parsed.data;
-
-  let resolvedKalaamId = kalaamId;
-  if (!resolvedKalaamId && kalaamTitle) {
-    const kalaam = await db.kalaam.create({ data: { title: kalaamTitle } });
-    resolvedKalaamId = kalaam.id;
-  }
-
-  const updateData: Record<string, unknown> = {};
-  if (date) updateData.date = new Date(date);
-  if (resolvedKalaamId) updateData.kalaamId = resolvedKalaamId;
-  if (lehenTypeId !== undefined) updateData.lehenTypeId = lehenTypeId ?? null;
-  if (lehenNotes !== undefined) updateData.lehenNotes = lehenNotes ?? null;
-  if (notes !== undefined) updateData.notes = notes ?? null;
+  const { date, kalaamIds, notes, attendeeIds } = parsed.data;
 
   const updated = await db.$transaction(async (tx) => {
+    if (kalaamIds) {
+      await tx.sessionKalaam.deleteMany({ where: { sessionId: id } });
+      await tx.sessionKalaam.createMany({
+        data: kalaamIds.map((kalaamId) => ({ sessionId: id, kalaamId })),
+      });
+    }
     if (attendeeIds) {
       await tx.sessionAttendee.deleteMany({ where: { sessionId: id } });
       await tx.sessionAttendee.createMany({
         data: attendeeIds.map((userId) => ({ sessionId: id, userId })),
       });
     }
+    const updateData: Record<string, unknown> = {};
+    if (date) updateData.date = new Date(date);
+    if (notes !== undefined) updateData.notes = notes ?? null;
     return tx.session.update({
       where: { id },
       data: updateData,
       include: {
-        kalaam: true,
-        lehenType: true,
+        kalaams: { include: { kalaam: true } },
         attendees: { include: { user: { select: { id: true, displayName: true } } } },
       },
     });
@@ -82,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

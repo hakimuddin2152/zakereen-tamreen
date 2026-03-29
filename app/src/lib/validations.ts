@@ -12,12 +12,15 @@ export const createReciterSchema = z.object({
     .max(32)
     .regex(/^[a-z0-9_]+$/, "Username: lowercase letters, numbers, underscores only"),
   displayName: z.string().min(1, "Display name is required").max(64),
+  partyName: z.string().max(100).optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 export const updateReciterSchema = z.object({
   displayName: z.string().min(1).max(64).optional(),
+  partyName: z.string().max(100).optional(),
   isActive: z.boolean().optional(),
+  grade: z.enum(["A", "B", "C", "D"]).nullable().optional(),
 });
 
 export const resetPasswordSchema = z.object({
@@ -26,15 +29,17 @@ export const resetPasswordSchema = z.object({
 
 export const createSessionSchema = z.object({
   date: z.string().datetime({ offset: true }).or(z.string().date()),
-  kalaamId: z.string().min(1).optional(),
-  kalaamTitle: z.string().min(1).max(200).optional(),
-  lehenTypeId: z.string().min(1).optional(),
-  lehenNotes: z.string().max(500).optional(),
+  kalaamIds: z.array(z.string().min(1)).min(1, "Select at least one kalaam"),
   notes: z.string().max(1000).optional(),
   attendeeIds: z.array(z.string().min(1)).min(1, "At least one attendee required"),
 });
 
-export const updateSessionSchema = createSessionSchema.partial();
+export const updateSessionSchema = z.object({
+  date: z.string().datetime({ offset: true }).or(z.string().date()).optional(),
+  kalaamIds: z.array(z.string().min(1)).min(1).optional(),
+  notes: z.string().max(1000).optional(),
+  attendeeIds: z.array(z.string().min(1)).optional(),
+});
 
 export const upsertEvaluationSchema = z.object({
   ranking: z.number().int().min(1).max(5).nullable().optional(),
@@ -46,18 +51,26 @@ export const upsertEvaluationSchema = z.object({
 
 export const createKalaamSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
-  poet: z.string().max(100).optional(),
-  language: z.string().max(50).optional(),
-  lyrics: z.string().optional(),
+  category: z.enum(["MARASIYA", "SALAAM", "MADEH", "MISC"]).default("MISC"),
+  recitedBy: z.string().max(200).optional(),
+  pdfLink: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  highestNote: z.string().max(10).optional(),
+  lowestNote: z.string().max(10).optional(),
 });
 
-export const createLehenTypeSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
+export const updateKalaamSchema = createKalaamSchema.partial();
+
+export const updatePrerequisiteSchema = z.object({
+  kalaamId: z.string().min(1),
+  lehenDone: z.boolean().optional(),
+  hifzDone: z.boolean().optional(),
 });
 
 export const uploadRequestSchema = z.object({
   contentType: z.string(),
   contentLength: z.number().int().positive(),
-  sessionId: z.string().cuid(),
-  userId: z.string().cuid(),
+  context: z.enum(["session", "kalaam"]),
+  sessionId: z.string().cuid().optional(),
+  userId: z.string().cuid().optional(),
+  kalaamId: z.string().cuid().optional(),
 });

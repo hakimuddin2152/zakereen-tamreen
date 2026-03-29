@@ -1,7 +1,9 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { formatDate } from "@/lib/utils-date";
+import { Badge } from "@/components/ui/badge";
 import { EvaluationTable } from "@/components/evaluations/evaluation-table";
 import { SessionActions } from "@/components/sessions/session-actions";
 
@@ -9,16 +11,26 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  MARASIYA: "Marasiya",
+  SALAAM: "Salaam",
+  MADEH: "Madeh",
+  MISC: "Misc",
+};
+
 export default async function SessionDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
   const currentUserId = session?.user?.id;
 
   const dbSession = await db.session.findUnique({
     where: { id },
     include: {
-      kalaam: true,
+      kalaams: {
+        include: { kalaam: true },
+        orderBy: { kalaam: { title: "asc" } },
+      },
       attendees: {
         include: { user: { select: { id: true, displayName: true } } },
         orderBy: { user: { displayName: "asc" } },
@@ -29,19 +41,20 @@ export default async function SessionDetailPage({ params }: Props) {
 
   if (!dbSession) notFound();
 
+  const kalaamList = dbSession.kalaams.map((sk) => sk.kalaam);
+
   return (
     <div>
       <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="text-muted-foreground text-sm font-mono">
-              {formatDate(dbSession.date)}
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">{dbSession.kalaam.title}</h1>
-          {dbSession.kalaam.poet && (
-            <p className="text-muted-foreground text-sm mt-0.5">by {dbSession.kalaam.poet}</p>
-          )}
+          <span className="text-muted-foreground text-sm font-mono">
+            {formatDate(dbSession.date)}
+          </span>
+          <h1 className="text-2xl font-bold text-foreground mt-1">
+            {kalaamList.length === 1
+              ? kalaamList[0].title
+              : `${kalaamList.length} Kalaams`}
+          </h1>
           {dbSession.notes && (
             <p className="text-muted-foreground text-sm mt-2 max-w-prose">{dbSession.notes}</p>
           )}
@@ -49,6 +62,40 @@ export default async function SessionDetailPage({ params }: Props) {
         {isAdmin && <SessionActions sessionId={id} />}
       </div>
 
+      {/* Kalaams practiced */}
+      <div className="bg-card border border-border rounded-lg overflow-hidden mb-6">
+        <div className="px-5 py-3 border-b border-border">
+          <h2 className="text-foreground font-semibold">
+            Kalaams ({kalaamList.length})
+          </h2>
+        </div>
+        <div className="divide-y divide-border">
+          {kalaamList.map((k) => (
+            <Link key={k.id} href={`/kalaams/${k.id}`}>
+              <div className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-accent/50 transition-colors cursor-pointer">
+                <div>
+                  <p className="text-foreground font-medium">{k.title}</p>
+                  {k.recitedBy && (
+                    <p className="text-muted-foreground text-xs">by {k.recitedBy}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="secondary" className="text-xs">
+                    {CATEGORY_LABELS[k.category] ?? k.category}
+                  </Badge>
+                  {(k.highestNote || k.lowestNote) && (
+                    <span className="text-muted-foreground text-xs">
+                      {k.lowestNote ?? "?"}–{k.highestNote ?? "?"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Attendees + evaluations */}
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <div className="px-5 py-3 border-b border-border flex items-center justify-between">
           <h2 className="text-foreground font-semibold">

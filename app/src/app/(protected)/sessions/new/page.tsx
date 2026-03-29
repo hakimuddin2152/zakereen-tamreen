@@ -5,16 +5,16 @@ import { NewSessionForm } from "@/components/sessions/new-session-form";
 
 export default async function NewSessionPage() {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") redirect("/dashboard");
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") redirect("/kalaams");
 
-  const [reciters, kalaams] = await Promise.all([
+  const [members, kalaams] = await Promise.all([
     db.user.findMany({
-      where: { isActive: true, role: "RECITER" },
-      select: { id: true, displayName: true },
+      where: { isActive: true, role: { not: "GOD" } },
+      select: { id: true, displayName: true, role: true },
       orderBy: { displayName: "asc" },
     }),
     db.kalaam.findMany({
-      select: { id: true, title: true },
+      select: { id: true, title: true, category: true },
       orderBy: { title: "asc" },
     }),
   ]);
@@ -22,7 +22,7 @@ export default async function NewSessionPage() {
   return (
     <div className="max-w-2xl">
       <h1 className="text-2xl font-bold text-foreground mb-6">New Session</h1>
-      <NewSessionForm reciters={reciters} kalaams={kalaams} />
+      <NewSessionForm reciters={members} kalaams={kalaams} />
     </div>
   );
 }

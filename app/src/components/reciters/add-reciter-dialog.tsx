@@ -27,6 +27,7 @@ export function AddReciterDialog() {
       username: data.get("username"),
       displayName: data.get("displayName"),
       password: data.get("password"),
+      partyName: data.get("partyName") || undefined,
     };
 
     if (data.get("password") !== data.get("confirmPassword")) {
@@ -59,13 +60,11 @@ export function AddReciterDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          + Add Reciter
-        </Button>
+        <Button>+ Add Member</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add New Reciter</DialogTitle>
+          <DialogTitle>Add Party Member</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-2">
@@ -84,6 +83,13 @@ export function AddReciterDialog() {
               placeholder="ali_hussain"
             />
             <p className="text-muted-foreground text-xs">Lowercase letters, numbers, underscores only</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Party / Group Name</Label>
+            <Input
+              name="partyName"
+              placeholder="Anjuman Hussainia"
+            />
           </div>
           <div className="space-y-2">
             <Label>Password *</Label>
@@ -115,7 +121,7 @@ export function AddReciterDialog() {
               type="submit"
               disabled={saving}
             >
-              {saving ? "Adding…" : "Add Reciter"}
+              {saving ? "Adding…" : "Add Member"}
             </Button>
           </DialogFooter>
         </form>

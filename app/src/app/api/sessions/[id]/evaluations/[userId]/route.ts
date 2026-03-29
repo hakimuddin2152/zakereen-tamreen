@@ -8,7 +8,7 @@ type Params = { params: Promise<{ id: string; userId: string }> };
 
 export async function PUT(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -45,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

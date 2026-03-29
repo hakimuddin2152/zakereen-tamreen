@@ -7,36 +7,42 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
-interface Reciter { id: string; displayName: string }
-interface Kalaam { id: string; title: string }
+interface Reciter { id: string; displayName: string; role?: string }
+interface Kalaam { id: string; title: string; category: string }
 
 interface Props {
   reciters: Reciter[];
   kalaams: Kalaam[];
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  MARASIYA: "Marasiya",
+  SALAAM: "Salaam",
+  MADEH: "Madeh",
+  MISC: "Misc",
+};
+
 export function NewSessionForm({ reciters, kalaams }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [selectedAttendees, setSelectedAttendees] = useState<Set<string>>(new Set());
-  const [kalaamMode, setKalaamMode] = useState<"existing" | "new">("existing");
-  const [selectedKalaamId, setSelectedKalaamId] = useState<string>("");
-  const [newKalaamTitle, setNewKalaamTitle] = useState("");
+  const [selectedKalaams, setSelectedKalaams] = useState<Set<string>>(new Set());
 
   function toggleAttendee(id: string) {
     setSelectedAttendees((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleKalaam(id: string) {
+    setSelectedKalaams((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
@@ -47,20 +53,15 @@ export function NewSessionForm({ reciters, kalaams }: Props) {
       toast.error("Select at least one attendee");
       return;
     }
-    if (kalaamMode === "existing" && !selectedKalaamId) {
-      toast.error("Select a kalaam or add a new one");
-      return;
-    }
-    if (kalaamMode === "new" && !newKalaamTitle.trim()) {
-      toast.error("Enter a kalaam title");
+    if (selectedKalaams.size === 0) {
+      toast.error("Select at least one kalaam");
       return;
     }
 
     const formData = new FormData(e.currentTarget);
     const body = {
       date: new Date(formData.get("date") as string).toISOString(),
-      kalaamId: kalaamMode === "existing" ? selectedKalaamId || undefined : undefined,
-      kalaamTitle: kalaamMode === "new" ? newKalaamTitle : undefined,
+      kalaamIds: Array.from(selectedKalaams),
       notes: (formData.get("notes") as string) || undefined,
       attendeeIds: Array.from(selectedAttendees),
     };
@@ -74,13 +75,19 @@ export function NewSessionForm({ reciters, kalaams }: Props) {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to create session");
+        // Surface prerequisite errors clearly
+        if (err.details && Array.isArray(err.details)) {
+          err.details.forEach((d: string) => toast.error(d));
+        } else {
+          toast.error(err.error || "Failed to create session");
+        }
+        return;
       }
       const session = await res.json();
       toast.success("Session created");
       router.push(`/sessions/${session.id}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error creating session");
+    } catch {
+      toast.error("Error creating session");
     } finally {
       setLoading(false);
     }
@@ -101,44 +108,37 @@ export function NewSessionForm({ reciters, kalaams }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label>Kalaam / Marasiya *</Label>
-            <div className="flex gap-2 mb-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={kalaamMode === "existing" ? "default" : "outline"}
-                onClick={() => setKalaamMode("existing")}
-              >
-                Select Existing
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={kalaamMode === "new" ? "default" : "outline"}
-                onClick={() => setKalaamMode("new")}
-              >
-                Add New
-              </Button>
-            </div>
-            {kalaamMode === "existing" ? (
-              <Select value={selectedKalaamId} onValueChange={setSelectedKalaamId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a kalaam…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {kalaams.map((k) => (
-                    <SelectItem key={k.id} value={k.id}>
-                      {k.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Label>
+              Kalaams * ({selectedKalaams.size} selected)
+            </Label>
+            {kalaams.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No kalaams in library yet.</p>
             ) : (
-              <Input
-                value={newKalaamTitle}
-                onChange={(e) => setNewKalaamTitle(e.target.value)}
-                placeholder="Enter kalaam title…"
-              />
+              <div className="border border-border rounded-md divide-y divide-border overflow-hidden">
+                {kalaams.map((k) => {
+                  const checked = selectedKalaams.has(k.id);
+                  return (
+                    <button
+                      key={k.id}
+                      type="button"
+                      onClick={() => toggleKalaam(k.id)}
+                      className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
+                        checked
+                          ? "bg-primary/15 text-primary"
+                          : "text-muted-foreground hover:bg-accent/40"
+                      }`}
+                    >
+                      <span className="font-medium text-sm">{k.title}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="secondary" className="text-xs">
+                          {CATEGORY_LABELS[k.category] ?? k.category}
+                        </Badge>
+                        {checked && <span className="text-primary text-xs font-bold">✓</span>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
 
@@ -159,8 +159,11 @@ export function NewSessionForm({ reciters, kalaams }: Props) {
           <Label className="mb-3 block">
             Attendance * ({selectedAttendees.size} selected)
           </Label>
+          <p className="text-muted-foreground text-xs mb-3">
+            Only members who have completed Lehen &amp; Hifz for all selected kalaams can be added.
+          </p>
           {reciters.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No reciters added yet. Add reciters in Admin → Reciters.</p>
+            <p className="text-muted-foreground text-sm">No members added yet.</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {reciters.map((r) => {
@@ -189,11 +192,7 @@ export function NewSessionForm({ reciters, kalaams }: Props) {
         <Button type="submit" disabled={loading}>
           {loading ? "Creating…" : "Create Session"}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-        >
+        <Button type="button" variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
       </div>

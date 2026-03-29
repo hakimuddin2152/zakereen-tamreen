@@ -1,41 +1,42 @@
 # Project Brief — Zakereen Tamreen
 
-> **BMAD Phase: Analyst**  
-> Status: Draft  
-> Date: 2026-03-28
+> **BMAD Phase: Analyst**
+> Status: Revamped — MVP 1
+> Date: 2026-03-29
 
 ---
 
 ## 1. Project Overview
 
-**Zakereen Tamreen** (زاکرین تمرین — "Reciters Practice") is a web-based management and tracking application for a group of Noha/Marasiya reciters who come together to practice and perform recitations dedicated to Imam Husain (AS).
+**Zakereen Tamreen** (زاکرین تمرین — "Reciters Practice") is a private web-based management and tracking application for a Noha/Marasiya recitation group (Zakiri Party / Anjuman) that practices devotional compositions dedicated to Imam Husain (AS).
 
-**Noha / Marasiya** is a devotional art form — a type of elegiac poetry recited with specific melodic patterns called **Lehen** (لحن) — the tune or melodic notes used when delivering each kalaam (composition/poem).
+Compositions (**Kalaams**) belong to one of four categories: **Marasiya**, **Salaam**, **Madeh**, or **Misc**.
 
 ---
 
 ## 2. Problem Statement
 
-Managing a group of Zakereen (reciters) involves tracking:
-- Which compositions (Marasiya/Noha/Kalaam) are practiced on which dates
-- Who attended each session
-- How well each individual recited in terms of melody/Lehen
-- Voice samples for review and improvement
-- Admin-curated rankings and voice-range assessments per person per kalaam
+Managing a recitation party involves tracking:
+- Which Kalaams each member is practicing and their personal readiness level
+- Who attended each session and which Kalaam was practiced
+- How well each member performed per session (star rating per Kalaam per session)
+- Each member's overall capability grade (A / B / C / D) assigned by the Ustad
+- Kalaam-level resources: audio recordings and PDF lyrics/notation
 
-Currently there is no dedicated tool for this — groups rely on informal records, group chats, or spreadsheets. This creates gaps in performance tracking and makes it hard to identify who needs improvement.
+Currently there is no dedicated tool — groups rely on WhatsApp messages, memory, or spreadsheets. This makes it hard to know who is "ready" for which Kalaam and to track improvement over time.
 
 ---
 
 ## 3. Goals & Objectives
 
 | # | Goal | Success Metric |
-|---|------|---------------|
-| 1 | Centralise session records | All practice sessions logged in one place |
-| 2 | Track individual reciter progress | Each reciter has a history of attendance, rankings & voice samples |
-| 3 | Enable admin evaluation | Admin can upload/rate samples and assign Lehen levels |
-| 4 | Voice range mapping | Admin can associate a voice range with each reciter for each kalaam |
-| 5 | Secure access | Login-protected so only group members can view data |
+|---|------|----------------|
+| 1 | Centralise the Kalaam library | All Kalaams listed with category, audio, and PDF |
+| 2 | Track each member's Kalaam readiness | My Kalaams shows Ready / In Progress / Attended Practice |
+| 3 | Record every practice session | Sessions log date, Kalaam, and all attendees |
+| 4 | Admin evaluation per session | Per-member star rating, voice notes, audio upload |
+| 5 | Overall member grading | Admin assigns each member a grade: A, B, C, or D |
+| 6 | Secure, role-based access | God user, Admin, Party Member each have appropriate access |
 
 ---
 
@@ -43,88 +44,102 @@ Currently there is no dedicated tool for this — groups rely on informal record
 
 | Role | Description |
 |------|-------------|
-| **Admin** | Group leader / Ustad — manages all data, assigns rankings, uploads evaluations |
-| **Reciter (Zakir)** | Regular group member — views their own data and the session dashboard |
-
-> For v1, login exists for both roles. Reciters can view; Admin can edit.
-
----
-
-## 5. Core Features (v1 Scope)
-
-### 5.1 Authentication
-- Username + Password login
-- Role-based access (Admin / Reciter)
-- Session management (stay logged in with secure token)
-
-### 5.2 Dashboard
-A central view showing:
-- List of sessions with:
-  - **Date** of session
-  - **Title of Marasiya / Kalaam** recited
-  - **Attendance** — who attended
-  - **Lehen Level** — the melodic/tune notes applied to this kalaam (e.g., Bayat, Saba, Hijaz, Rast, etc.)
-  - Summary of rankings for that session
-
-### 5.3 Session Management (Admin)
-- Create / edit / delete sessions
-- Assign a date, kalaam title, and Lehen type
-- Mark attendees from the registered reciter list
-
-### 5.4 Individual Reciter Profile
-Per session + per reciter:
-- **Voice Sample Upload** — audio file (mp3/wav/m4a) recorded for that session
-- **Ranking** — admin assigns a score/rank (e.g., 1–5 stars or numeric)
-- **Voice Range** — admin records the voice range (e.g., bass, baritone, tenor) that fit this person for this kalaam
-
-### 5.5 Admin Panel
-- Manage reciter accounts (add / deactivate)
-- Edit all session data
-- Manage kalaam / Marasiya library
+| **God User** | Super-admin — can promote / demote any user to/from Admin |
+| **Admin (Ustad)** | Group leader — manages all data, evaluates members, assigns grades, uploads Kalaam content |
+| **Party Member (Zakir)** | Regular group member — views their own Kalaams, sessions, and evaluations |
 
 ---
 
-## 6. Out of Scope for v1
+## 5. Core Features (MVP 1)
+
+### 5.1 Authentication & Roles
+- Username + password login
+- Three roles: `GOD`, `ADMIN`, `PARTY_MEMBER`
+- God user can promote any user to Admin (and demote)
+- Admin can add / deactivate Party Members and reset their passwords
+- Party Members can only view their own data
+
+### 5.2 Main Screen — Kalaam Library by Category
+- Post-login landing page shows all Kalaams grouped by:
+  **Marasiya** | **Salaam** | **Madeh** | **Misc**
+- Each Kalaam is clickable → Kalaam detail page showing:
+  - How many times it has been practiced, across which sessions
+  - Inline audio player (if audio uploaded)
+  - PDF link / icon (MVP 2: open PDF in-app)
+
+### 5.3 My Kalaams (Party Member View)
+- Sidebar/menu item showing the logged-in member's personal Kalaams grouped by status:
+  - **Ready** — latest session evaluation for this Kalaam rated ≥ 4 by Admin
+  - **In Progress** — latest session evaluation rated < 4
+  - **Attended Practice** — attended session(s) for this Kalaam but not yet evaluated
+
+### 5.4 Session Management
+- Admin creates sessions: date, Kalaam, optional notes, attendance list
+- Session detail shows all attendees with their evaluations for that Kalaam
+- The **latest** session evaluation determines My Kalaams status for that member + Kalaam
+
+### 5.5 Admin: Evaluate Member in Session
+- Per session, per attendee: star rating (1–5), voice range, audio upload, notes
+
+### 5.6 Admin: Overall Member Grade
+- Admin assigns each Party Member a holistic grade: **A**, **B**, **C**, or **D**
+- Independent of individual Kalaam ratings — represents overall capability
+
+### 5.7 Admin: Kalaam Management
+- Add / edit Kalaam: title, category (Marasiya/Salaam/Madeh/Misc), "recited by" (text), PDF link, audio upload
+- Kalaam audio plays inline on the Kalaam detail / main screen
+
+### 5.8 Admin: Party Member Management
+- Add member: display name, Party Name, username, password, confirm password
+- **Party Name** stored for future multi-party support (MVP 2)
+- Deactivate / reactivate accounts; reset passwords; assign grade (A/B/C/D)
+
+---
+
+## 6. Navigation / Menu Structure
+
+### Party Member Menu
+- Main Screen (Kalaam Library)
+- My Kalaams → Ready / In Progress / Attended Practice
+
+### Admin Menu
+- Main Screen (Kalaam Library)
+- My Kalaams
+- Sessions
+- Add Kalaam
+- Add Party Member
+- Evaluate Member (overall grade A/B/C/D)
+- Session Evaluations (per-Kalaam per-session ratings)
+
+### God User Menu
+- All Admin items
+- User Management (promote/demote Admin role)
+
+---
+
+## 7. Out of Scope for MVP 1
+- In-app PDF viewer (MVP 2)
+- Multi-party filtering by Party Name (MVP 2)
 - Public-facing pages
-- Online recitation / live streaming
-- AI-based voice analysis (potential v2 feature)
-- Social/commenting features
-- Payment or fundraising features
+- AI-based voice analysis
+- Export to PDF / CSV
+- Live streaming or social features
+- Payment features
 
 ---
 
-## 7. Key Domain Terminology
+## 8. Key Domain Terminology
 
 | Term | Meaning |
 |------|---------|
-| Zakir (زاکر) | A reciter of Noha or Marasiya |
-| Zakereen (زاکرین) | Plural — the group of reciters |
-| Marasiya (مرثیہ) | Elegiac poetry for Imam Husain (AS) |
-| Noha (نوحہ) | A specific form of mourning recitation |
-| Kalaam (کلام) | A composition / poem being recited |
-| Lehen (لحن) | The melodic mode / tune pattern used |
-| Ustad (استاد) | The teacher / group leader (likely the Admin) |
-| Tamreen (تمرین) | Practice / Training |
-
----
-
-## 8. Assumptions & Constraints
-- Small group (likely 5–50 reciters)
-- Primarily used on mobile browsers and desktop
-- Audio files may be large — storage and upload limits need consideration
-- Admin is a single trusted user (or small trusted group) for v1
-- Language of UI: English (with Urdu/Arabic terms displayed as-is)
-
----
-
-## 9. Open Questions for PM Phase
-1. Should reciters be able to upload their own voice samples or only admin?
-2. What is the ranking scale? Stars (1–5), numeric (1–10), or descriptive (Beginner/Intermediate/Advanced)?
-3. Should there be a Kalaam library with details (poet, year, text) or just a title?
-4. Should attendance be tracked as present/absent, or with notes?
-5. Should voice range be free text, or a predefined list?
-6. Should there be notifications (e.g., email/SMS) for upcoming sessions?
-
----
-
-*Next Phase: PRD → Product Manager*
+| Zakir (زاکر) | A reciter of Noha or Marasiya; "Party Member" in this app |
+| Kalaam | A composition/poem practiced by the group |
+| Marasiya | Kalaam category: devotional elegy |
+| Salaam | Kalaam category: salutation-form poem |
+| Madeh | Kalaam category: praise-form poem |
+| Ustad | Teacher / group leader — the Admin role |
+| Party Name | Name of the group (stored for future multi-party use) |
+| Grade (A/B/C/D) | Overall admin-assigned capability grade for a Party Member |
+| Ready | Kalaam status: member rated ≥ 4 in latest session evaluation |
+| In Progress | Kalaam status: member rated < 4 in latest session evaluation |
+| Attended Practice | Kalaam status: attended session but not yet evaluated |

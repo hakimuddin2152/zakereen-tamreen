@@ -12,22 +12,23 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
 
-  // Reciters can only access their own profile
-  if (session.user.role !== "ADMIN" && session.user.id !== id) {
+  // Members can only access their own profile
+  const role = session.user.role;
+  if (role !== "ADMIN" && role !== "GOD" && session.user.id !== id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const user = await db.user.findUnique({
     where: { id },
     select: {
-      id: true, username: true, displayName: true, role: true, isActive: true, createdAt: true,
+      id: true, username: true, displayName: true, partyName: true, role: true,
+      grade: true, isActive: true, createdAt: true,
       evaluations: {
         orderBy: { session: { date: "desc" } },
         include: {
           session: {
             include: {
-              kalaam: { select: { title: true } },
-              lehenType: { select: { name: true } },
+              kalaams: { include: { kalaam: { select: { id: true, title: true, category: true } } } },
             },
           },
         },
@@ -41,7 +42,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -62,7 +63,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const updated = await db.user.update({
     where: { id },
     data: parsed.data,
-    select: { id: true, username: true, displayName: true, role: true, isActive: true },
+    select: { id: true, username: true, displayName: true, partyName: true, role: true, grade: true, isActive: true },
   });
 
   return NextResponse.json(updated);
