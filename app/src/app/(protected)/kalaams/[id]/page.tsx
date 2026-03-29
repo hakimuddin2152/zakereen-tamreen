@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { AudioPlayer } from "@/components/evaluations/audio-player";
 import { PrerequisiteToggle } from "@/components/kalaams/prerequisite-toggle";
 import { DeleteKalaamButton } from "@/components/admin/delete-kalaam-button";
+import { EditKalaamDialog } from "@/components/admin/edit-kalaam-dialog";
+import { AdminPrerequisiteTable } from "@/components/admin/admin-prerequisite-table";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -25,14 +27,17 @@ export default async function KalaamDetailPage({ params }: Props) {
   const userId = session!.user!.id;
   const isPrivileged = session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
 
-  const [kalaam, prereq] = await Promise.all([
+  const [kalaam, prereq, adminData] = await Promise.all([
     db.kalaam.findUnique({
       where: { id },
       include: {
         sessionKalaams: {
           include: {
             session: {
-              include: { _count: { select: { attendees: true } } },
+              include: {
+                _count: { select: { attendees: true } },
+                evaluations: { where: { userId }, select: { ranking: true, notes: true } },
+              },
             },
           },
           orderBy: { session: { date: "desc" } },
@@ -42,11 +47,24 @@ export default async function KalaamDetailPage({ params }: Props) {
     db.kalaamPrerequisite.findUnique({
       where: { userId_kalaamId: { userId, kalaamId: id } },
     }),
+    isPrivileged
+      ? Promise.all([
+          // Exclude current user — they manage their own prereqs via "My Prerequisites"
+          db.user.findMany({
+            where: { isActive: true, role: { not: "GOD" }, id: { not: userId } },
+            select: { id: true, displayName: true, partyName: true },
+            orderBy: { displayName: "asc" },
+          }),
+          db.kalaamPrerequisite.findMany({ where: { kalaamId: id } }),
+        ])
+      : Promise.resolve(null),
   ]);
 
   if (!kalaam) notFound();
 
   const sessions = kalaam.sessionKalaams.map((sk) => sk.session);
+  const allMembers = adminData?.[0] ?? [];
+  const allPrereqs = adminData?.[1] ?? [];
 
   return (
     <div className="max-w-2xl">
@@ -62,11 +80,14 @@ export default async function KalaamDetailPage({ params }: Props) {
             )}
           </div>
           {isPrivileged && (
-            <DeleteKalaamButton
-              id={kalaam.id}
-              title={kalaam.title}
-              sessionCount={sessions.length}
-            />
+            <div className="flex items-center gap-2">
+              <EditKalaamDialog kalaam={kalaam} />
+              <DeleteKalaamButton
+                id={kalaam.id}
+                title={kalaam.title}
+                sessionCount={sessions.length}
+              />
+            </div>
           )}
         </div>
 
@@ -138,19 +159,55 @@ export default async function KalaamDetailPage({ params }: Props) {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {sessions.map((s) => (
-              <Link key={s.id} href={`/sessions/${s.id}`}>
-                <div className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-accent/50 transition-colors cursor-pointer">
-                  <span className="text-foreground text-sm font-mono">{formatDate(s.date)}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {s._count.attendees} attendee{s._count.attendees !== 1 ? "s" : ""}
-                  </span>
-                </div>
-              </Link>
-            ))}
+            {sessions.map((s) => {
+              const myEval = s.evaluations[0] ?? null;
+              return (
+                <Link key={s.id} href={`/sessions/${s.id}`}>
+                  <div className="px-5 py-3 hover:bg-accent/50 transition-colors cursor-pointer">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-foreground text-sm font-mono">{formatDate(s.date)}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {myEval?.ranking != null && (
+                          <span className="text-yellow-400 text-sm">
+                            {"★".repeat(myEval.ranking)}
+                            <span className="text-muted-foreground/30">{"★".repeat(5 - myEval.ranking)}</span>
+                          </span>
+                        )}
+                        <span className="text-muted-foreground text-xs">
+                          {s._count.attendees} attendee{s._count.attendees !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    </div>
+                    {s.notes && (
+                      <p className="text-muted-foreground text-xs mt-1 line-clamp-2">{s.notes}</p>
+                    )}
+                    {myEval?.notes && (
+                      <p className="text-muted-foreground text-xs mt-1 italic line-clamp-2">My notes: {myEval.notes}</p>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Admin: manage prerequisites for all members */}
+      {isPrivileged && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden mt-6">
+          <div className="px-5 py-3 border-b border-border">
+            <h2 className="text-foreground font-semibold">Member Prerequisites</h2>
+            <p className="text-muted-foreground text-xs mt-0.5">
+              Manage Lehen &amp; Hifz completion for all members
+            </p>
+          </div>
+          <AdminPrerequisiteTable
+            kalaamId={id}
+            members={allMembers}
+            initialPrereqs={allPrereqs}
+          />
+        </div>
+      )}
     </div>
   );
 }

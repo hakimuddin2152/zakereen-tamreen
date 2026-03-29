@@ -7,23 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { KalaamBrowser } from "@/components/kalaams/kalaam-browser";
 
 interface Reciter { id: string; displayName: string; role?: string }
-interface Kalaam { id: string; title: string; category: string }
+interface Kalaam { id: string; title: string; category: string; recitedBy?: string | null }
 
 interface Props {
   reciters: Reciter[];
   kalaams: Kalaam[];
 }
-
-const CATEGORY_LABELS: Record<string, string> = {
-  MARASIYA: "Marasiya",
-  SALAAM: "Salaam",
-  MADEH: "Madeh",
-  MISC: "Misc",
-};
 
 export function NewSessionForm({ reciters, kalaams }: Props) {
   const router = useRouter();
@@ -114,31 +107,12 @@ export function NewSessionForm({ reciters, kalaams }: Props) {
             {kalaams.length === 0 ? (
               <p className="text-muted-foreground text-sm">No kalaams in library yet.</p>
             ) : (
-              <div className="border border-border rounded-md divide-y divide-border overflow-hidden">
-                {kalaams.map((k) => {
-                  const checked = selectedKalaams.has(k.id);
-                  return (
-                    <button
-                      key={k.id}
-                      type="button"
-                      onClick={() => toggleKalaam(k.id)}
-                      className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
-                        checked
-                          ? "bg-primary/15 text-primary"
-                          : "text-muted-foreground hover:bg-accent/40"
-                      }`}
-                    >
-                      <span className="font-medium text-sm">{k.title}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="secondary" className="text-xs">
-                          {CATEGORY_LABELS[k.category] ?? k.category}
-                        </Badge>
-                        {checked && <span className="text-primary text-xs font-bold">✓</span>}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              <KalaamBrowser
+                kalaams={kalaams}
+                selectable
+                selectedIds={selectedKalaams}
+                onToggle={toggleKalaam}
+              />
             )}
           </div>
 

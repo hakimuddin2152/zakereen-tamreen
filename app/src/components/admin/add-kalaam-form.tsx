@@ -25,7 +25,7 @@ export function AddKalaamForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("MISC");
+  const [category, setCategory] = useState("MARASIYA");
   const [recitedBy, setRecitedBy] = useState("");
   const [pdfLink, setPdfLink] = useState("");
   const [highestNote, setHighestNote] = useState("");
@@ -78,10 +78,10 @@ export function AddKalaamForm() {
       <div className="space-y-2">
         <Label>Category</Label>
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="w-full min-w-[200px]">
             {CATEGORIES.map((c) => (
               <SelectItem key={c.value} value={c.value}>
                 {c.label}

@@ -28,24 +28,38 @@ const CATEGORIES = [
   { value: "MISC", label: "Misc" },
 ] as const;
 
-export function AddKalaamDialog() {
+interface Kalaam {
+  id: string;
+  title: string;
+  category: string;
+  recitedBy?: string | null;
+  pdfLink?: string | null;
+  highestNote?: string | null;
+  lowestNote?: string | null;
+}
+
+interface Props {
+  kalaam: Kalaam;
+}
+
+export function EditKalaamDialog({ kalaam }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<string>("MARASIYA");
-  const [recitedBy, setRecitedBy] = useState("");
-  const [pdfLink, setPdfLink] = useState("");
-  const [highestNote, setHighestNote] = useState("");
-  const [lowestNote, setLowestNote] = useState("");
+  const [title, setTitle] = useState(kalaam.title);
+  const [category, setCategory] = useState(kalaam.category);
+  const [recitedBy, setRecitedBy] = useState(kalaam.recitedBy ?? "");
+  const [pdfLink, setPdfLink] = useState(kalaam.pdfLink ?? "");
+  const [highestNote, setHighestNote] = useState(kalaam.highestNote ?? "");
+  const [lowestNote, setLowestNote] = useState(kalaam.lowestNote ?? "");
 
   function reset() {
-    setTitle("");
-    setCategory("MARASIYA");
-    setRecitedBy("");
-    setPdfLink("");
-    setHighestNote("");
-    setLowestNote("");
+    setTitle(kalaam.title);
+    setCategory(kalaam.category);
+    setRecitedBy(kalaam.recitedBy ?? "");
+    setPdfLink(kalaam.pdfLink ?? "");
+    setHighestNote(kalaam.highestNote ?? "");
+    setLowestNote(kalaam.lowestNote ?? "");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,8 +70,8 @@ export function AddKalaamDialog() {
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/kalaam", {
-        method: "POST",
+      const res = await fetch(`/api/kalaams/${kalaam.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
@@ -70,14 +84,13 @@ export function AddKalaamDialog() {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to add kalaam");
+        throw new Error(err.error || "Failed to update kalaam");
       }
-      toast.success("Kalaam added");
-      reset();
+      toast.success("Kalaam updated");
       setOpen(false);
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error adding kalaam");
+      toast.error(err instanceof Error ? err.message : "Error updating kalaam");
     } finally {
       setLoading(false);
     }
@@ -86,11 +99,11 @@ export function AddKalaamDialog() {
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
       <DialogTrigger asChild>
-        <Button>+ Add Kalaam</Button>
+        <Button variant="outline" size="sm">Edit</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Kalaam</DialogTitle>
+          <DialogTitle>Edit Kalaam</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-2">
@@ -154,7 +167,7 @@ export function AddKalaamDialog() {
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Adding…" : "Add Kalaam"}
+              {loading ? "Saving…" : "Save Changes"}
             </Button>
           </div>
         </form>

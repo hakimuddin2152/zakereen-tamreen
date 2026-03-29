@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ export function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
   const isPrivileged = user.role === "ADMIN" || user.role === "GOD";
   const isGod = user.role === "GOD";
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = [
     { href: "/kalaams", label: "Kalaams" },
@@ -36,11 +38,17 @@ export function Navbar({ user }: NavbarProps) {
   return (
     <nav className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+        {/* Logo */}
         <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="flex items-center gap-1.5">
-            <span className="text-primary font-bold text-lg" dir="rtl">زاکرین تمرین</span>
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <div className="flex flex-col leading-tight">
+              <span className="text-primary font-bold text-base">Zakereen Tamreen</span>
+              <span className="text-muted-foreground text-xs font-medium" dir="rtl">زاکرین تمرین</span>
+            </div>
           </Link>
-          <div className="flex items-center gap-1">
+
+          {/* Desktop nav links */}
+          <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
               <Link key={link.href} href={link.href}>
                 <Button
@@ -59,41 +67,86 @@ export function Navbar({ user }: NavbarProps) {
           </div>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 h-9">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {user.name?.[0]?.toUpperCase() ?? "U"}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm text-muted-foreground hidden sm:block">
-                {user.name}
-              </span>
-              <Badge
-                variant="outline"
-                className={`text-xs hidden sm:block ${isPrivileged ? "border-primary text-primary" : ""}`}
+        <div className="flex items-center gap-2">
+          {/* User menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center gap-2 h-9">
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {user.name?.[0]?.toUpperCase() ?? "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm text-muted-foreground hidden sm:block">
+                  {user.name}
+                </span>
+                <Badge
+                  variant="outline"
+                  className={`text-xs hidden sm:block ${isPrivileged ? "border-primary text-primary" : ""}`}
+                >
+                  {roleLabel}
+                </Badge>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/reciters/${user.id}`} className="cursor-pointer">
+                  My Profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive cursor-pointer"
+                onClick={() => signOut({ callbackUrl: "/login" })}
               >
-                {roleLabel}
-              </Badge>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/reciters/${user.id}`} className="cursor-pointer">
-                My Profile
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive cursor-pointer"
-              onClick={() => signOut({ callbackUrl: "/login" })}
-            >
-              Sign Out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Hamburger button (mobile only) */}
+          <button
+            className="md:hidden flex flex-col justify-center items-center w-9 h-9 gap-1.5 rounded-md hover:bg-accent transition-colors"
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            <span
+              className={`block w-5 h-0.5 bg-foreground transition-transform duration-200 ${mobileOpen ? "rotate-45 translate-y-2" : ""}`}
+            />
+            <span
+              className={`block w-5 h-0.5 bg-foreground transition-opacity duration-200 ${mobileOpen ? "opacity-0" : ""}`}
+            />
+            <span
+              className={`block w-5 h-0.5 bg-foreground transition-transform duration-200 ${mobileOpen ? "-rotate-45 -translate-y-2" : ""}`}
+            />
+          </button>
+        </div>
       </div>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div className="md:hidden border-t border-border bg-card px-4 py-3 flex flex-col gap-1">
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setMobileOpen(false)}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`w-full justify-start ${
+                  pathname.startsWith(link.href)
+                    ? "text-foreground bg-accent"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {link.label}
+              </Button>
+            </Link>
+          ))}
+        </div>
+      )}
     </nav>
   );
 }

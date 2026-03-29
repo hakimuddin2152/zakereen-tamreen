@@ -39,7 +39,7 @@ export default function LoginPage() {
     if (result?.error) {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
-      if (newAttempts >= 5) {
+      if (newAttempts >= 15) {
         setLocked(true);
         toast.error("Too many attempts. Try again in 15 minutes.");
         setTimeout(() => {

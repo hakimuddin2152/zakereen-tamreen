@@ -88,7 +88,7 @@ export function AddReciterDialog() {
             <Label>Party / Group Name</Label>
             <Input
               name="partyName"
-              placeholder="Anjuman Hussainia"
+              placeholder="Hizbe Abbas Group 2"
             />
           </div>
           <div className="space-y-2">

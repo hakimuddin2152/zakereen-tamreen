@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function PrerequisiteToggle({ kalaamId, field, label, initialValue }: Props) {
+  const router = useRouter();
   const [done, setDone] = useState(initialValue);
   const [loading, setLoading] = useState(false);
 
@@ -27,6 +29,8 @@ export function PrerequisiteToggle({ kalaamId, field, label, initialValue }: Pro
       if (!res.ok) throw new Error("Failed to update");
       setDone(next);
       toast.success(`${label} marked as ${next ? "complete" : "incomplete"}`);
+      // Bust the router cache so My Kalaams reflects the change immediately
+      router.refresh();
     } catch {
       toast.error("Could not update prerequisite");
     } finally {

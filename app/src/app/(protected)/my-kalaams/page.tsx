@@ -25,73 +25,103 @@ interface KalaamEntry {
 }
 
 async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, KalaamEntry[]>> {
-  const attendances = await db.sessionAttendee.findMany({
+  // Step 1: all sessions the user attended (session id + date)
+  const attended = await db.sessionAttendee.findMany({
     where: { userId },
-    include: {
-      session: {
-        include: {
-          kalaams: {
-            include: { kalaam: { select: { id: true, title: true, category: true } } },
-          },
-        },
-      },
-    },
-    orderBy: { session: { date: "desc" } },
+    select: { sessionId: true, session: { select: { id: true, date: true } } },
   });
 
-  // Flatten multi-kalaam sessions — track latest session per kalaamId
-  const latestByKalaam = new Map<
+  if (attended.length === 0) return { Ready: [], InProgress: [], AttendedPractice: [] };
+
+  const sessionIds = attended.map((a) => a.session.id);
+  const sessionDateById = new Map(attended.map((a) => [a.session.id, a.session.date]));
+
+  // Step 2: all kalaams that appeared in those sessions (flat query, no nested filter)
+  const sessionKalaams = await db.sessionKalaam.findMany({
+    where: { sessionId: { in: sessionIds } },
+    include: { kalaam: { select: { id: true, title: true, category: true } } },
+  });
+
+  if (sessionKalaams.length === 0) return { Ready: [], InProgress: [], AttendedPractice: [] };
+
+  // Step 3: all evaluations for this user across those sessions (flat, direct query)
+  const evaluations = await db.reciterEvaluation.findMany({
+    where: { userId, sessionId: { in: sessionIds } },
+  });
+  const evalBySessionId = new Map(evaluations.map((e) => [e.sessionId, e]));
+
+  // Step 4: build per-kalaam data — track latest session date and latest evaluated ranking
+  const kalaamMap = new Map<
     string,
-    { kalaamId: string; kalaamTitle: string; kalaamCategory: string; latestSessionId: string; latestSessionDate: Date }
+    {
+      kalaamId: string;
+      kalaamTitle: string;
+      kalaamCategory: string;
+      latestSessionDate: Date;
+      latestEvalDate: Date | null;
+      latestEvalRanking: number | null;
+      hasEval: boolean;
+    }
   >();
 
-  for (const att of attendances) {
-    for (const sk of att.session.kalaams) {
-      const kId = sk.kalaam.id;
-      if (!latestByKalaam.has(kId)) {
-        latestByKalaam.set(kId, {
-          kalaamId: kId,
-          kalaamTitle: sk.kalaam.title,
-          kalaamCategory: sk.kalaam.category,
-          latestSessionId: att.session.id,
-          latestSessionDate: att.session.date,
-        });
+  for (const sk of sessionKalaams) {
+    const sessionDate = sessionDateById.get(sk.sessionId)!;
+    const ev = evalBySessionId.get(sk.sessionId) ?? null;
+    const kId = sk.kalaam.id;
+    const existing = kalaamMap.get(kId);
+
+    if (!existing) {
+      kalaamMap.set(kId, {
+        kalaamId: kId,
+        kalaamTitle: sk.kalaam.title,
+        kalaamCategory: sk.kalaam.category,
+        latestSessionDate: sessionDate,
+        latestEvalDate: ev ? sessionDate : null,
+        latestEvalRanking: ev?.ranking ?? null,
+        hasEval: ev !== null,
+      });
+    } else {
+      // Keep the most recent session date for display
+      if (sessionDate > existing.latestSessionDate) {
+        existing.latestSessionDate = sessionDate;
+      }
+      // Use the evaluation whose session is most recent
+      if (
+        ev !== null &&
+        (existing.latestEvalDate === null || sessionDate > existing.latestEvalDate)
+      ) {
+        existing.latestEvalDate = sessionDate;
+        existing.latestEvalRanking = ev.ranking ?? null;
+        existing.hasEval = true;
       }
     }
   }
 
-  if (latestByKalaam.size === 0) return { Ready: [], InProgress: [], AttendedPractice: [] };
-
-  const entries = Array.from(latestByKalaam.values());
-  const sessionIds = [...new Set(entries.map((e) => e.latestSessionId))];
-  const kalaamIds = entries.map((e) => e.kalaamId);
-
-  const [evaluations, prerequisites] = await Promise.all([
-    db.reciterEvaluation.findMany({ where: { userId, sessionId: { in: sessionIds } } }),
-    db.kalaamPrerequisite.findMany({ where: { userId, kalaamId: { in: kalaamIds } } }),
-  ]);
-
-  const evalBySession = new Map(evaluations.map((e) => [e.sessionId, e]));
+  // Step 5: prerequisites
+  const kalaamIds = Array.from(kalaamMap.keys());
+  const prerequisites = await db.kalaamPrerequisite.findMany({
+    where: { userId, kalaamId: { in: kalaamIds } },
+  });
   const prereqByKalaam = new Map(prerequisites.map((p) => [p.kalaamId, p]));
 
   const result: Record<KalaamStatus, KalaamEntry[]> = { Ready: [], InProgress: [], AttendedPractice: [] };
 
-  for (const entry of entries) {
-    const ev = evalBySession.get(entry.latestSessionId);
-    const prereq = prereqByKalaam.get(entry.kalaamId);
+  for (const data of kalaamMap.values()) {
+    const prereq = prereqByKalaam.get(data.kalaamId);
     const item: KalaamEntry = {
-      kalaamId: entry.kalaamId,
-      kalaamTitle: entry.kalaamTitle,
-      kalaamCategory: entry.kalaamCategory,
-      latestSessionDate: entry.latestSessionDate,
-      latestRanking: ev?.ranking ?? null,
+      kalaamId: data.kalaamId,
+      kalaamTitle: data.kalaamTitle,
+      kalaamCategory: data.kalaamCategory,
+      latestSessionDate: data.latestSessionDate,
+      latestRanking: data.latestEvalRanking,
       lehenDone: prereq?.lehenDone ?? false,
       hifzDone: prereq?.hifzDone ?? false,
       status: "AttendedPractice",
     };
-    if (!ev) {
+
+    if (!data.hasEval || !item.lehenDone || !item.hifzDone) {
       result.AttendedPractice.push(item);
-    } else if ((ev.ranking ?? 0) >= 4) {
+    } else if ((data.latestEvalRanking ?? 0) >= 4) {
       item.status = "Ready";
       result.Ready.push(item);
     } else {
