@@ -53,7 +53,7 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
   const evaluations = await db.reciterEvaluation.findMany({
     where: { userId, sessionId: { in: sessionIds } },
   });
-  const evalBySessionId = new Map(evaluations.map((e) => [e.sessionId, e]));
+  const evalByKey = new Map(evaluations.map((e) => [`${e.sessionId}_${e.kalaamId ?? ""}`, e]));
 
   // Step 4: build per-kalaam data — collect ALL sessions and track latest eval
   const kalaamMap = new Map<
@@ -71,7 +71,7 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
 
   for (const sk of sessionKalaams) {
     const sess = sessionById.get(sk.sessionId)!;
-    const ev = evalBySessionId.get(sk.sessionId) ?? null;
+    const ev = evalByKey.get(`${sk.sessionId}_${sk.kalaam.id}`) ?? null;
     const kId = sk.kalaam.id;
     const existing = kalaamMap.get(kId);
 

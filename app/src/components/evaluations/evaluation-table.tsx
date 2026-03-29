@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EvaluationDialog } from "@/components/evaluations/evaluation-dialog";
@@ -11,6 +10,7 @@ interface Attendee { id: string; displayName: string }
 interface Evaluation {
   id: string;
   userId: string;
+  kalaamId: string | null;
   ranking: number | null;
   voiceRange: string | null;
   audioFileKey: string | null;
@@ -24,6 +24,7 @@ interface Props {
   isAdmin: boolean;
   currentUserId: string;
   sessionId: string;
+  kalaams: { id: string; title: string }[];
 }
 
 function StarRating({ value }: { value: number | null }) {
@@ -42,15 +43,25 @@ export function EvaluationTable({
   isAdmin,
   currentUserId,
   sessionId,
+  kalaams,
 }: Props) {
+  // Keyed by `${userId}_${kalaamId}`
   const [localEvals, setLocalEvals] = useState<Map<string, Evaluation>>(
-    new Map(evaluations.map((e) => [e.userId, e]))
+    new Map(evaluations.map((e) => [`${e.userId}_${e.kalaamId ?? ""}`, e]))
   );
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
 
-  function onEvalSaved(evaluation: Evaluation) {
-    setLocalEvals((prev) => new Map(prev).set(evaluation.userId, evaluation));
-    setEditingUserId(null);
+  function onEvalSaved(kalaamId: string, evaluation: Evaluation) {
+    setLocalEvals((prev) => new Map(prev).set(`${evaluation.userId}_${kalaamId}`, evaluation));
+  }
+
+  function buildUserEvalMap(userId: string): Map<string, Evaluation> {
+    const map = new Map<string, Evaluation>();
+    for (const k of kalaams) {
+      const ev = localEvals.get(`${userId}_${k.id}`);
+      if (ev) map.set(k.id, ev);
+    }
+    return map;
   }
 
   return (
@@ -58,38 +69,42 @@ export function EvaluationTable({
       <div className="divide-y divide-border">
         {attendees.map((attendee) => {
           const canSee = isAdmin || attendee.id === currentUserId;
-          const ev = localEvals.get(attendee.id);
+          const userEvalMap = buildUserEvalMap(attendee.id);
 
           return (
             <div key={attendee.id} className="px-5 py-4">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-foreground font-medium">{attendee.displayName}</span>
-                    {ev?.voiceRange && (
-                      <Badge variant="secondary" className="text-xs">
-                        {ev.voiceRange}
-                      </Badge>
-                    )}
-                  </div>
+                  <span className="text-foreground font-medium">{attendee.displayName}</span>
 
                   {canSee ? (
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <StarRating value={ev?.ranking ?? null} />
-                        {ev?.notes && (
-                          <span className="text-muted-foreground text-xs">"{ev.notes}"</span>
-                        )}
-                      </div>
-                      {ev?.audioFileKey && (
-                        <AudioPlayer
-                          fileKey={ev.audioFileKey}
-                          fileName={ev.audioFileName ?? undefined}
-                        />
-                      )}
-                      {!ev?.audioFileKey && (
-                        <span className="text-muted-foreground text-xs">No recording uploaded</span>
-                      )}
+                    <div className="mt-2 space-y-3">
+                      {kalaams.map((k) => {
+                        const ev = userEvalMap.get(k.id);
+                        return (
+                          <div key={k.id}>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-muted-foreground text-xs font-medium">{k.title}</span>
+                              {ev?.voiceRange && (
+                                <Badge variant="secondary" className="text-xs">{ev.voiceRange}</Badge>
+                              )}
+                            </div>
+                            {ev ? (
+                              <div className="flex items-center gap-3 flex-wrap pl-2 mt-1">
+                                <StarRating value={ev.ranking} />
+                                {ev.notes && (
+                                  <span className="text-muted-foreground text-xs">"{ev.notes}"</span>
+                                )}
+                                {ev.audioFileKey && (
+                                  <AudioPlayer fileKey={ev.audioFileKey} fileName={ev.audioFileName ?? undefined} />
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-xs pl-2">Not evaluated</span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-muted-foreground text-xs mt-1">
@@ -105,7 +120,7 @@ export function EvaluationTable({
                     onClick={() => setEditingUserId(attendee.id)}
                     className="shrink-0"
                   >
-                    {ev ? "Edit" : "Evaluate"}
+                    {userEvalMap.size > 0 ? "Edit" : "Evaluate"}
                   </Button>
                 )}
               </div>
@@ -119,7 +134,8 @@ export function EvaluationTable({
           sessionId={sessionId}
           userId={editingUserId}
           userName={attendees.find((a) => a.id === editingUserId)?.displayName ?? ""}
-          existing={localEvals.get(editingUserId) ?? null}
+          kalaams={kalaams}
+          existingEvals={buildUserEvalMap(editingUserId)}
           onSaved={onEvalSaved}
           onClose={() => setEditingUserId(null)}
         />

@@ -26,6 +26,7 @@ const VOICE_RANGES = ["Bass", "Baritone", "Tenor", "Counter-Tenor", "Alto", "Oth
 interface Evaluation {
   id: string;
   userId: string;
+  kalaamId: string | null;
   ranking: number | null;
   voiceRange: string | null;
   audioFileKey: string | null;
@@ -37,8 +38,9 @@ interface Props {
   sessionId: string;
   userId: string;
   userName: string;
-  existing: Evaluation | null;
-  onSaved: (ev: Evaluation) => void;
+  kalaams: { id: string; title: string }[];
+  existingEvals: Map<string, Evaluation>; // keyed by kalaamId
+  onSaved: (kalaamId: string, ev: Evaluation) => void;
   onClose: () => void;
 }
 
@@ -61,22 +63,44 @@ function StarSelector({ value, onChange }: { value: number; onChange: (n: number
   );
 }
 
-export function EvaluationDialog({ sessionId, userId, userName, existing, onSaved, onClose }: Props) {
-  const [ranking, setRanking] = useState<number>(existing?.ranking ?? 0);
-  const [voiceRange, setVoiceRange] = useState<string>(existing?.voiceRange ?? "");
-  const [notes, setNotes] = useState<string>(existing?.notes ?? "");
+export function EvaluationDialog({
+  sessionId,
+  userId,
+  userName,
+  kalaams,
+  existingEvals,
+  onSaved,
+  onClose,
+}: Props) {
+  // Local copy of evals so dialog reflects updates without prop drilling
+  const [localEvals, setLocalEvals] = useState<Map<string, Evaluation>>(() => new Map(existingEvals));
+  const [selectedKalaamId, setSelectedKalaamId] = useState<string>(kalaams[0]?.id ?? "");
+
+  const initEval = existingEvals.get(kalaams[0]?.id ?? "");
+  const [ranking, setRanking] = useState<number>(initEval?.ranking ?? 0);
+  const [voiceRange, setVoiceRange] = useState<string>(initEval?.voiceRange ?? "");
+  const [notes, setNotes] = useState<string>(initEval?.notes ?? "");
+  const [uploadedKey, setUploadedKey] = useState<string | null>(initEval?.audioFileKey ?? null);
+  const [uploadedName, setUploadedName] = useState<string | null>(initEval?.audioFileName ?? null);
+
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [uploadedKey, setUploadedKey] = useState<string | null>(existing?.audioFileKey ?? null);
-  const [uploadedName, setUploadedName] = useState<string | null>(existing?.audioFileName ?? null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function handleKalaamChange(kalaamId: string) {
+    const ev = localEvals.get(kalaamId);
+    setSelectedKalaamId(kalaamId);
+    setRanking(ev?.ranking ?? 0);
+    setVoiceRange(ev?.voiceRange ?? "");
+    setNotes(ev?.notes ?? "");
+    setUploadedKey(ev?.audioFileKey ?? null);
+    setUploadedName(ev?.audioFileName ?? null);
+  }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPendingFile(file);
     await uploadFile(file);
   }
 
@@ -84,7 +108,6 @@ export function EvaluationDialog({ sessionId, userId, userName, existing, onSave
     setUploading(true);
     setUploadProgress(0);
     try {
-      // 1. Get presigned URL
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,7 +124,6 @@ export function EvaluationDialog({ sessionId, userId, userName, existing, onSave
       }
       const { uploadUrl, fileKey } = await res.json();
 
-      // 2. Upload directly to storage
       const xhr = new XMLHttpRequest();
       await new Promise<void>((resolve, reject) => {
         xhr.upload.addEventListener("progress", (ev) => {
@@ -119,22 +141,23 @@ export function EvaluationDialog({ sessionId, userId, userName, existing, onSave
 
       setUploadedKey(fileKey);
       setUploadedName(file.name);
-      toast.success("Audio uploaded successfully");
+      toast.success("Audio uploaded");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
-      setPendingFile(null);
     } finally {
       setUploading(false);
     }
   }
 
   async function handleSave() {
+    if (!selectedKalaamId) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/sessions/${sessionId}/evaluations/${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          kalaamId: selectedKalaamId,
           ranking: ranking || null,
           voiceRange: voiceRange || null,
           notes: notes || null,
@@ -144,8 +167,11 @@ export function EvaluationDialog({ sessionId, userId, userName, existing, onSave
       });
       if (!res.ok) throw new Error("Failed to save evaluation");
       const saved = await res.json();
-      toast.success("Evaluation saved");
-      onSaved(saved);
+      setLocalEvals((prev) => new Map(prev).set(selectedKalaamId, saved));
+      onSaved(selectedKalaamId, saved);
+      toast.success(
+        `Saved — ${kalaams.find((k) => k.id === selectedKalaamId)?.title ?? "kalaam"}`
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error saving");
     } finally {
@@ -162,11 +188,28 @@ export function EvaluationDialog({ sessionId, userId, userName, existing, onSave
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
+            <Label>Kalaam</Label>
+            <Select value={selectedKalaamId} onValueChange={handleKalaamChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select kalaam…" />
+              </SelectTrigger>
+              <SelectContent>
+                {kalaams.map((k) => (
+                  <SelectItem key={k.id} value={k.id}>
+                    {k.title}
+                    {localEvals.has(k.id) ? " ✓" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label>Ranking</Label>
             <StarSelector value={ranking} onChange={setRanking} />
           </div>
 
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label>Voice Range</Label>
             <Select value={voiceRange} onValueChange={setVoiceRange}>
               <SelectTrigger>
@@ -178,7 +221,7 @@ export function EvaluationDialog({ sessionId, userId, userName, existing, onSave
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div> */}
 
           <div className="space-y-2">
             <Label>Notes</Label>
@@ -198,7 +241,7 @@ export function EvaluationDialog({ sessionId, userId, userName, existing, onSave
                 <span className="text-primary text-sm truncate">{uploadedName ?? "Audio file"}</span>
                 <button
                   type="button"
-                  onClick={() => { setUploadedKey(null); setUploadedName(null); setPendingFile(null); }}
+                  onClick={() => { setUploadedKey(null); setUploadedName(null); }}
                   className="text-destructive text-xs hover:text-destructive/80"
                 >
                   Remove
@@ -229,8 +272,8 @@ export function EvaluationDialog({ sessionId, userId, userName, existing, onSave
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving || uploading}>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={handleSave} disabled={saving || uploading || !selectedKalaamId}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

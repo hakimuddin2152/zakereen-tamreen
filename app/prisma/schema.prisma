@@ -59,6 +59,7 @@ model Kalaam {
 
   sessionKalaams SessionKalaam[]
   prerequisites  KalaamPrerequisite[]
+  evaluations    ReciterEvaluation[]
 }
 
 model Session {
@@ -114,6 +115,7 @@ model ReciterEvaluation {
   id            String   @id @default(cuid())
   sessionId     String
   userId        String
+  kalaamId      String?
   ranking       Int?
   voiceRange    String?
   audioFileKey  String?
@@ -124,7 +126,8 @@ model ReciterEvaluation {
 
   session       Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user          User    @relation(fields: [userId], references: [id])
+  kalaam        Kalaam? @relation(fields: [kalaamId], references: [id])
 
-  @@unique([sessionId, userId])
+  @@unique([sessionId, userId, kalaamId])
 }
 

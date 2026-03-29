@@ -42,6 +42,7 @@ export const updateSessionSchema = z.object({
 });
 
 export const upsertEvaluationSchema = z.object({
+  kalaamId: z.string().min(1),
   ranking: z.number().int().min(1).max(5).nullable().optional(),
   voiceRange: z.string().max(100).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { formatDate } from "@/lib/utils-date";
 import { Badge } from "@/components/ui/badge";
 import { AudioPlayer } from "@/components/evaluations/audio-player";
+import { ReciterActions } from "@/components/reciters/reciter-actions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -53,16 +54,26 @@ export default async function ReciterProfilePage({ params }: Props) {
   return (
     <div>
       <div className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-2xl font-bold text-foreground">{reciter.displayName}</h1>
-          <Badge
-            variant="outline"
-            className={reciter.isActive ? "border-green-600 text-green-600" : "border-destructive text-destructive"}
-          >
-            {reciter.isActive ? "Active" : "Inactive"}
-          </Badge>
-          {reciter.role !== "PARTY_MEMBER" && (
-            <Badge variant="outline">{reciter.role === "GOD" ? "God" : "Admin"}</Badge>
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-foreground">{reciter.displayName}</h1>
+            <Badge
+              variant="outline"
+              className={reciter.isActive ? "border-green-600 text-green-600" : "border-destructive text-destructive"}
+            >
+              {reciter.isActive ? "Active" : "Inactive"}
+            </Badge>
+            {reciter.role !== "PARTY_MEMBER" && (
+              <Badge variant="outline">{reciter.role === "GOD" ? "God" : "Admin"}</Badge>
+            )}
+          </div>
+          {isAdmin && (
+            <ReciterActions
+              reciterId={reciter.id}
+              isActive={reciter.isActive}
+              displayName={reciter.displayName}
+              currentGrade={reciter.grade ?? undefined}
+            />
           )}
         </div>
         <p className="text-muted-foreground text-sm">@{reciter.username}</p>

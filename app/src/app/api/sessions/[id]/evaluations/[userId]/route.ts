@@ -34,25 +34,37 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "User is not an attendee of this session" }, { status: 404 });
   }
 
+  const { kalaamId, ...fields } = parsed.data;
+
+  // Verify kalaam is in this session
+  const sessionKalaam = await db.sessionKalaam.findUnique({
+    where: { sessionId_kalaamId: { sessionId, kalaamId } },
+  });
+  if (!sessionKalaam) {
+    return NextResponse.json({ error: "Kalaam is not part of this session" }, { status: 404 });
+  }
+
   const evaluation = await db.reciterEvaluation.upsert({
-    where: { sessionId_userId: { sessionId, userId } },
-    create: { sessionId, userId, ...parsed.data },
-    update: parsed.data,
+    where: { sessionId_userId_kalaamId: { sessionId, userId, kalaamId } },
+    create: { sessionId, userId, kalaamId, ...fields },
+    update: fields,
   });
 
   return NextResponse.json(evaluation);
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id: sessionId, userId } = await params;
+  const kalaamId = new URL(req.url).searchParams.get("kalaamId");
+  if (!kalaamId) return NextResponse.json({ error: "kalaamId required" }, { status: 400 });
 
   const evaluation = await db.reciterEvaluation.findUnique({
-    where: { sessionId_userId: { sessionId, userId } },
+    where: { sessionId_userId_kalaamId: { sessionId, userId, kalaamId } },
   });
 
   if (!evaluation) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -62,7 +74,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   }
 
   await db.reciterEvaluation.delete({
-    where: { sessionId_userId: { sessionId, userId } },
+    where: { sessionId_userId_kalaamId: { sessionId, userId, kalaamId } },
   });
 
   return NextResponse.json({ success: true });

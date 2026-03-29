@@ -43,6 +43,19 @@ export default async function SessionDetailPage({ params }: Props) {
 
   const kalaamList = dbSession.kalaams.map((sk) => sk.kalaam);
 
+  let allKalaams: { id: string; title: string; category: string; recitedBy: string | null }[] = [];
+  let allReciters: { id: string; displayName: string }[] = [];
+  if (isAdmin) {
+    [allKalaams, allReciters] = await Promise.all([
+      db.kalaam.findMany({ orderBy: { title: "asc" } }),
+      db.user.findMany({
+        where: { isActive: true, role: { not: "GOD" } },
+        select: { id: true, displayName: true },
+        orderBy: { displayName: "asc" },
+      }),
+    ]);
+  }
+
   return (
     <div>
       <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
@@ -59,7 +72,17 @@ export default async function SessionDetailPage({ params }: Props) {
             <p className="text-muted-foreground text-sm mt-2 max-w-prose">{dbSession.notes}</p>
           )}
         </div>
-        {isAdmin && <SessionActions sessionId={id} />}
+        {isAdmin && (
+          <SessionActions
+            sessionId={id}
+            currentDate={dbSession.date.toISOString().split("T")[0]}
+            currentNotes={dbSession.notes}
+            currentKalaamIds={dbSession.kalaams.map((sk) => sk.kalaamId)}
+            currentAttendeeIds={dbSession.attendees.map((a) => a.userId)}
+            allKalaams={allKalaams}
+            allReciters={allReciters}
+          />
+        )}
       </div>
 
       {/* Kalaams practiced */}
@@ -108,6 +131,7 @@ export default async function SessionDetailPage({ params }: Props) {
           isAdmin={isAdmin}
           currentUserId={currentUserId!}
           sessionId={id}
+          kalaams={kalaamList.map((k) => ({ id: k.id, title: k.title }))}
         />
       </div>
     </div>
