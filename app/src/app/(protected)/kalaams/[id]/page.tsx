@@ -9,6 +9,8 @@ import { PrerequisiteToggle } from "@/components/kalaams/prerequisite-toggle";
 import { DeleteKalaamButton } from "@/components/admin/delete-kalaam-button";
 import { EditKalaamDialog } from "@/components/admin/edit-kalaam-dialog";
 import { AdminPrerequisiteTable } from "@/components/admin/admin-prerequisite-table";
+import { KalaamRecordings } from "@/components/kalaams/kalaam-recordings";
+import { PdfViewer } from "@/components/kalaams/pdf-viewer";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -27,7 +29,7 @@ export default async function KalaamDetailPage({ params }: Props) {
   const userId = session!.user!.id;
   const isPrivileged = session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
 
-  const [kalaam, prereq, adminData] = await Promise.all([
+  const [kalaam, prereq, adminData, myRecordings] = await Promise.all([
     db.kalaam.findUnique({
       where: { id },
       include: {
@@ -58,6 +60,11 @@ export default async function KalaamDetailPage({ params }: Props) {
           db.kalaamPrerequisite.findMany({ where: { kalaamId: id } }),
         ])
       : Promise.resolve(null),
+    db.kalaamRecording.findMany({
+      where: { userId, kalaamId: id },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+    }),
   ]);
 
   if (!kalaam) notFound();
@@ -98,15 +105,12 @@ export default async function KalaamDetailPage({ params }: Props) {
               {kalaam.lowestNote ?? "?"} – {kalaam.highestNote ?? "?"}
             </div>
           )}
-          {kalaam.pdfLink && (
-            <a
-              href={kalaam.pdfLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline"
-            >
-              📄 PDF
-            </a>
+          {(kalaam.pdfFileKey || kalaam.pdfLink) && (
+            <PdfViewer
+              fileKey={kalaam.pdfFileKey}
+              fileName={kalaam.pdfFileName}
+              pdfLink={kalaam.pdfLink}
+            />
           )}
         </div>
 
@@ -143,6 +147,17 @@ export default async function KalaamDetailPage({ params }: Props) {
             initialValue={prereq?.hifzDone ?? false}
           />
         </div>
+      </div>
+
+      {/* My practice recordings */}
+      <div className="bg-card border border-border rounded-lg overflow-hidden mb-6">
+        <div className="px-5 py-3 border-b border-border">
+          <h2 className="text-foreground font-semibold">My Recordings</h2>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            Upload your practice audio — last 3 are kept
+          </p>
+        </div>
+        <KalaamRecordings kalaamId={id} initialRecordings={myRecordings} />
       </div>
 
       {/* Sessions */}

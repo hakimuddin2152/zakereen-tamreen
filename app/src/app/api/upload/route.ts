@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getPresignedUploadUrl, validateAudioUpload } from "@/lib/storage";
+import { getPresignedUploadUrl, validateAudioUpload, validatePdfUpload } from "@/lib/storage";
 import { uploadRequestSchema } from "@/lib/validations";
 import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: unknown;
@@ -23,18 +23,33 @@ export async function POST(req: NextRequest) {
   }
 
   const { contentType, contentLength, context, sessionId, userId, kalaamId } = parsed.data;
+  const role = session.user.role;
 
-  const validationError = validateAudioUpload(contentType, contentLength);
+  // Members can only upload their own practice recordings
+  if (role !== "ADMIN" && role !== "GOD" && context !== "kalaamRecording") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const validationError =
+    context === "kalaamPdf"
+      ? validatePdfUpload(contentType, contentLength)
+      : validateAudioUpload(contentType, contentLength);
   if (validationError) {
     return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
   const ext = contentType.split("/")[1]?.replace("mpeg", "mp3") ?? "audio";
+  const currentUserId = session.user.id!;
   let fileKey: string;
+
   if (context === "kalaam" && kalaamId) {
     fileKey = `kalaams/${kalaamId}/${randomUUID()}.${ext}`;
   } else if (context === "session" && sessionId && userId) {
     fileKey = `sessions/${sessionId}/${userId}/${randomUUID()}.${ext}`;
+  } else if (context === "kalaamRecording" && kalaamId) {
+    fileKey = `recordings/${kalaamId}/${currentUserId}/${randomUUID()}.${ext}`;
+  } else if (context === "kalaamPdf" && kalaamId) {
+    fileKey = `pdf/${kalaamId}/${randomUUID()}.pdf`;
   } else {
     return NextResponse.json({ error: "Invalid upload context" }, { status: 400 });
   }

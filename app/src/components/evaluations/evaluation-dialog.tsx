@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -20,8 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const VOICE_RANGES = ["Bass", "Baritone", "Tenor", "Counter-Tenor", "Alto", "Other"];
+import { AudioPlayer } from "@/components/evaluations/audio-player";
 
 interface Evaluation {
   id: string;
@@ -34,12 +32,20 @@ interface Evaluation {
   notes: string | null;
 }
 
+interface Recording {
+  id: string;
+  fileKey: string;
+  fileName: string;
+  createdAt: string | Date;
+}
+
 interface Props {
   sessionId: string;
   userId: string;
   userName: string;
   kalaams: { id: string; title: string }[];
   existingEvals: Map<string, Evaluation>; // keyed by kalaamId
+  recordingsByKalaamId: Map<string, Recording[]>; // keyed by kalaamId
   onSaved: (kalaamId: string, ev: Evaluation) => void;
   onClose: () => void;
 }
@@ -69,6 +75,7 @@ export function EvaluationDialog({
   userName,
   kalaams,
   existingEvals,
+  recordingsByKalaamId,
   onSaved,
   onClose,
 }: Props) {
@@ -78,75 +85,15 @@ export function EvaluationDialog({
 
   const initEval = existingEvals.get(kalaams[0]?.id ?? "");
   const [ranking, setRanking] = useState<number>(initEval?.ranking ?? 0);
-  const [voiceRange, setVoiceRange] = useState<string>(initEval?.voiceRange ?? "");
   const [notes, setNotes] = useState<string>(initEval?.notes ?? "");
-  const [uploadedKey, setUploadedKey] = useState<string | null>(initEval?.audioFileKey ?? null);
-  const [uploadedName, setUploadedName] = useState<string | null>(initEval?.audioFileName ?? null);
 
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   function handleKalaamChange(kalaamId: string) {
     const ev = localEvals.get(kalaamId);
     setSelectedKalaamId(kalaamId);
     setRanking(ev?.ranking ?? 0);
-    setVoiceRange(ev?.voiceRange ?? "");
     setNotes(ev?.notes ?? "");
-    setUploadedKey(ev?.audioFileKey ?? null);
-    setUploadedName(ev?.audioFileName ?? null);
-  }
-
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await uploadFile(file);
-  }
-
-  async function uploadFile(file: File) {
-    setUploading(true);
-    setUploadProgress(0);
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contentType: file.type || "audio/mpeg",
-          contentLength: file.size,
-          sessionId,
-          userId,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to get upload URL");
-      }
-      const { uploadUrl, fileKey } = await res.json();
-
-      const xhr = new XMLHttpRequest();
-      await new Promise<void>((resolve, reject) => {
-        xhr.upload.addEventListener("progress", (ev) => {
-          if (ev.lengthComputable) setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
-        });
-        xhr.addEventListener("load", () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`Upload failed: ${xhr.status}`));
-        });
-        xhr.addEventListener("error", () => reject(new Error("Upload network error")));
-        xhr.open("PUT", uploadUrl);
-        xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg");
-        xhr.send(file);
-      });
-
-      setUploadedKey(fileKey);
-      setUploadedName(file.name);
-      toast.success("Audio uploaded");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
-    }
   }
 
   async function handleSave() {
@@ -159,10 +106,9 @@ export function EvaluationDialog({
         body: JSON.stringify({
           kalaamId: selectedKalaamId,
           ranking: ranking || null,
-          voiceRange: voiceRange || null,
           notes: notes || null,
-          audioFileKey: uploadedKey,
-          audioFileName: uploadedName,
+          audioFileKey: null,
+          audioFileName: null,
         }),
       });
       if (!res.ok) throw new Error("Failed to save evaluation");
@@ -178,6 +124,8 @@ export function EvaluationDialog({
       setSaving(false);
     }
   }
+
+  const currentRecordings = recordingsByKalaamId.get(selectedKalaamId) ?? [];
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -204,24 +152,29 @@ export function EvaluationDialog({
             </Select>
           </div>
 
+          {/* Practice recordings by this user for the selected kalaam */}
+          <div className="space-y-2">
+            <Label>Practice Recordings by {userName}</Label>
+            {currentRecordings.length === 0 ? (
+              <p className="text-muted-foreground text-xs">No recordings uploaded yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {currentRecordings.map((r, i) => (
+                  <div key={r.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 space-y-1">
+                    <span className="text-xs text-muted-foreground">
+                      #{currentRecordings.length - i} · {new Date(r.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                    </span>
+                    <AudioPlayer fileKey={r.fileKey} fileName={r.fileName} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label>Ranking</Label>
             <StarSelector value={ranking} onChange={setRanking} />
           </div>
-
-          {/* <div className="space-y-2">
-            <Label>Voice Range</Label>
-            <Select value={voiceRange} onValueChange={setVoiceRange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select voice range…" />
-              </SelectTrigger>
-              <SelectContent>
-                {VOICE_RANGES.map((vr) => (
-                  <SelectItem key={vr} value={vr}>{vr}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div> */}
 
           <div className="space-y-2">
             <Label>Notes</Label>
@@ -233,47 +186,11 @@ export function EvaluationDialog({
               className="resize-none"
             />
           </div>
-
-          <div className="space-y-2">
-            <Label>Voice Recording</Label>
-            {uploadedKey ? (
-              <div className="flex items-center gap-2">
-                <span className="text-primary text-sm truncate">{uploadedName ?? "Audio file"}</span>
-                <button
-                  type="button"
-                  onClick={() => { setUploadedKey(null); setUploadedName(null); }}
-                  className="text-destructive text-xs hover:text-destructive/80"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                >
-                  {uploading ? `Uploading ${uploadProgress}%…` : "Upload Audio"}
-                </Button>
-                <Input
-                  ref={fileRef}
-                  type="file"
-                  accept="audio/*"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <p className="text-muted-foreground text-xs mt-1">mp3, wav, m4a, ogg — max 50 MB</p>
-              </div>
-            )}
-          </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={handleSave} disabled={saving || uploading || !selectedKalaamId}>
+          <Button onClick={handleSave} disabled={saving || !selectedKalaamId}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

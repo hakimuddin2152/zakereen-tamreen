@@ -56,6 +56,16 @@ export default async function SessionDetailPage({ params }: Props) {
     ]);
   }
 
+  // Fetch practice recordings for all attendees × kalaams in this session (for admin eval dialog)
+  const attendeeIds = dbSession.attendees.map((a) => a.userId);
+  const kalaamIds = dbSession.kalaams.map((sk) => sk.kalaamId);
+  const recordings = isAdmin
+    ? await db.kalaamRecording.findMany({
+        where: { userId: { in: attendeeIds }, kalaamId: { in: kalaamIds } },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+
   return (
     <div>
       <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
@@ -132,6 +142,7 @@ export default async function SessionDetailPage({ params }: Props) {
           currentUserId={currentUserId!}
           sessionId={id}
           kalaams={kalaamList.map((k) => ({ id: k.id, title: k.title }))}
+          recordings={recordings}
         />
       </div>
     </div>

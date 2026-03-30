@@ -39,9 +39,10 @@ model User {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  attendances   SessionAttendee[]
-  evaluations   ReciterEvaluation[]
-  prerequisites KalaamPrerequisite[]
+  attendances      SessionAttendee[]
+  evaluations      ReciterEvaluation[]
+  prerequisites    KalaamPrerequisite[]
+  kalaamRecordings KalaamRecording[]
 }
 
 model Kalaam {
@@ -50,6 +51,8 @@ model Kalaam {
   category      KalaamCategory @default(MISC)
   recitedBy     String?
   pdfLink       String?
+  pdfFileKey    String?
+  pdfFileName   String?
   audioFileKey  String?
   audioFileName String?
   highestNote   String?
@@ -60,6 +63,7 @@ model Kalaam {
   sessionKalaams SessionKalaam[]
   prerequisites  KalaamPrerequisite[]
   evaluations    ReciterEvaluation[]
+  recordings     KalaamRecording[]
 }
 
 model Session {
@@ -129,5 +133,17 @@ model ReciterEvaluation {
   kalaam        Kalaam? @relation(fields: [kalaamId], references: [id])
 
   @@unique([sessionId, userId, kalaamId])
+}
+
+model KalaamRecording {
+  id        String   @id @default(cuid())
+  userId    String
+  kalaamId  String
+  fileKey   String
+  fileName  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kalaam Kalaam @relation(fields: [kalaamId], references: [id], onDelete: Cascade)
 }
 

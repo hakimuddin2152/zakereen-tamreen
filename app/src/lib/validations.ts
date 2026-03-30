@@ -59,7 +59,15 @@ export const createKalaamSchema = z.object({
   lowestNote: z.string().max(10).optional(),
 });
 
-export const updateKalaamSchema = createKalaamSchema.partial();
+export const updateKalaamSchema = createKalaamSchema.partial().extend({
+  pdfFileKey: z.string().max(500).nullable().optional(),
+  pdfFileName: z.string().max(200).nullable().optional(),
+});
+
+export const saveRecordingSchema = z.object({
+  fileKey: z.string().min(1).max(500),
+  fileName: z.string().min(1).max(200),
+});
 
 export const updatePrerequisiteSchema = z.object({
   kalaamId: z.string().min(1),
@@ -70,7 +78,7 @@ export const updatePrerequisiteSchema = z.object({
 export const uploadRequestSchema = z.object({
   contentType: z.string(),
   contentLength: z.number().int().positive(),
-  context: z.enum(["session", "kalaam"]),
+  context: z.enum(["session", "kalaam", "kalaamRecording", "kalaamPdf"]),
   sessionId: z.string().cuid().optional(),
   userId: z.string().cuid().optional(),
   kalaamId: z.string().cuid().optional(),

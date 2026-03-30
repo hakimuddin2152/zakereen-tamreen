@@ -17,6 +17,14 @@ interface Evaluation {
   audioFileName: string | null;
   notes: string | null;
 }
+interface Recording {
+  id: string;
+  userId: string;
+  kalaamId: string;
+  fileKey: string;
+  fileName: string;
+  createdAt: string | Date;
+}
 
 interface Props {
   attendees: Attendee[];
@@ -25,6 +33,7 @@ interface Props {
   currentUserId: string;
   sessionId: string;
   kalaams: { id: string; title: string }[];
+  recordings: Recording[];
 }
 
 function StarRating({ value }: { value: number | null }) {
@@ -44,12 +53,21 @@ export function EvaluationTable({
   currentUserId,
   sessionId,
   kalaams,
+  recordings,
 }: Props) {
   // Keyed by `${userId}_${kalaamId}`
   const [localEvals, setLocalEvals] = useState<Map<string, Evaluation>>(
     new Map(evaluations.map((e) => [`${e.userId}_${e.kalaamId ?? ""}`, e]))
   );
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+
+  // Build recordings map: `${userId}_${kalaamId}` → up to 3 newest recordings
+  const recordingsMap = new Map<string, Recording[]>();
+  for (const r of recordings) {
+    const key = `${r.userId}_${r.kalaamId}`;
+    const prev = recordingsMap.get(key) ?? [];
+    if (prev.length < 3) recordingsMap.set(key, [...prev, r]);
+  }
 
   function onEvalSaved(kalaamId: string, evaluation: Evaluation) {
     setLocalEvals((prev) => new Map(prev).set(`${evaluation.userId}_${kalaamId}`, evaluation));
@@ -60,6 +78,15 @@ export function EvaluationTable({
     for (const k of kalaams) {
       const ev = localEvals.get(`${userId}_${k.id}`);
       if (ev) map.set(k.id, ev);
+    }
+    return map;
+  }
+
+  function buildUserRecordingsMap(userId: string): Map<string, Recording[]> {
+    const map = new Map<string, Recording[]>();
+    for (const k of kalaams) {
+      const recs = recordingsMap.get(`${userId}_${k.id}`);
+      if (recs?.length) map.set(k.id, recs);
     }
     return map;
   }
@@ -136,6 +163,7 @@ export function EvaluationTable({
           userName={attendees.find((a) => a.id === editingUserId)?.displayName ?? ""}
           kalaams={kalaams}
           existingEvals={buildUserEvalMap(editingUserId)}
+          recordingsByKalaamId={buildUserRecordingsMap(editingUserId)}
           onSaved={onEvalSaved}
           onClose={() => setEditingUserId(null)}
         />

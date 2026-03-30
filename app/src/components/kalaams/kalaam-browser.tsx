@@ -11,6 +11,7 @@ interface Kalaam {
   category: string;
   recitedBy?: string | null;
   audioFileKey?: string | null;
+  pdfFileKey?: string | null;
   pdfLink?: string | null;
   _count?: { sessionKalaams: number };
 }
@@ -189,7 +190,7 @@ export function KalaamBrowser({
                                 Audio
                               </Badge>
                             )}
-                            {k.pdfLink && (
+                            {(k.pdfFileKey || k.pdfLink) && (
                               <Badge variant="outline" className="text-xs">
                                 PDF
                               </Badge>

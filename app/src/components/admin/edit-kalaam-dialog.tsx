@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ interface Kalaam {
   category: string;
   recitedBy?: string | null;
   pdfLink?: string | null;
+  pdfFileKey?: string | null;
+  pdfFileName?: string | null;
   highestNote?: string | null;
   lowestNote?: string | null;
 }
@@ -50,16 +52,61 @@ export function EditKalaamDialog({ kalaam }: Props) {
   const [category, setCategory] = useState(kalaam.category);
   const [recitedBy, setRecitedBy] = useState(kalaam.recitedBy ?? "");
   const [pdfLink, setPdfLink] = useState(kalaam.pdfLink ?? "");
+  const [pdfFileKey, setPdfFileKey] = useState<string | null>(kalaam.pdfFileKey ?? null);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(kalaam.pdfFileName ?? null);
   const [highestNote, setHighestNote] = useState(kalaam.highestNote ?? "");
   const [lowestNote, setLowestNote] = useState(kalaam.lowestNote ?? "");
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const pdfRef = useRef<HTMLInputElement>(null);
 
   function reset() {
     setTitle(kalaam.title);
     setCategory(kalaam.category);
     setRecitedBy(kalaam.recitedBy ?? "");
     setPdfLink(kalaam.pdfLink ?? "");
+    setPdfFileKey(kalaam.pdfFileKey ?? null);
+    setPdfFileName(kalaam.pdfFileName ?? null);
     setHighestNote(kalaam.highestNote ?? "");
     setLowestNote(kalaam.lowestNote ?? "");
+  }
+
+  async function handlePdfSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setPdfUploading(true);
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentType: "application/pdf",
+          contentLength: file.size,
+          context: "kalaamPdf",
+          kalaamId: kalaam.id,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to get upload URL");
+      }
+      const { uploadUrl, fileKey } = await res.json();
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "application/pdf" },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error("Failed to upload PDF");
+
+      setPdfFileKey(fileKey);
+      setPdfFileName(file.name);
+      toast.success("PDF uploaded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "PDF upload failed");
+    } finally {
+      setPdfUploading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -78,6 +125,8 @@ export function EditKalaamDialog({ kalaam }: Props) {
           category,
           recitedBy: recitedBy.trim() || undefined,
           pdfLink: pdfLink.trim() || undefined,
+          pdfFileKey: pdfFileKey ?? null,
+          pdfFileName: pdfFileName ?? null,
           highestNote: highestNote.trim() || undefined,
           lowestNote: lowestNote.trim() || undefined,
         }),
@@ -136,13 +185,48 @@ export function EditKalaamDialog({ kalaam }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label>PDF Link</Label>
+            <Label>PDF Link (URL)</Label>
             <Input
               value={pdfLink}
               onChange={(e) => setPdfLink(e.target.value)}
               placeholder="https://…"
               type="url"
             />
+          </div>
+          <div className="space-y-2">
+            <Label>PDF File Upload</Label>
+            {pdfFileKey ? (
+              <div className="flex items-center gap-2">
+                <span className="text-primary text-sm truncate">{pdfFileName ?? "PDF uploaded"}</span>
+                <button
+                  type="button"
+                  onClick={() => { setPdfFileKey(null); setPdfFileName(null); }}
+                  className="text-destructive text-xs hover:text-destructive/80"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => pdfRef.current?.click()}
+                  disabled={pdfUploading}
+                >
+                  {pdfUploading ? "Uploading…" : "Upload PDF"}
+                </Button>
+                <span className="text-muted-foreground text-xs">PDF only · max 20 MB</span>
+                <Input
+                  ref={pdfRef}
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={handlePdfSelect}
+                />
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">

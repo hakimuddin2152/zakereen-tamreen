@@ -27,6 +27,7 @@ const ALLOWED_TYPES = [
   "audio/webm",
 ];
 const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+const MAX_PDF_BYTES = 20 * 1024 * 1024; // 20 MB
 
 export function validateAudioUpload(contentType: string, contentLength: number) {
   if (!ALLOWED_TYPES.includes(contentType)) {
@@ -36,6 +37,26 @@ export function validateAudioUpload(contentType: string, contentLength: number) 
     return "File too large. Maximum size is 50 MB";
   }
   return null;
+}
+
+export function validatePdfUpload(contentType: string, contentLength: number) {
+  if (contentType !== "application/pdf") {
+    return "Invalid file type. Only PDF is allowed.";
+  }
+  if (contentLength > MAX_PDF_BYTES) {
+    return "File too large. Maximum size is 20 MB";
+  }
+  return null;
+}
+
+export async function getPresignedPdfUrl(key: string): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ResponseContentType: "application/pdf",
+    ResponseContentDisposition: "inline",
+  });
+  return getSignedUrl(s3, command, { expiresIn: 900 });
 }
 
 export async function getPresignedUploadUrl(
