@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/utils-date";
 import { Badge } from "@/components/ui/badge";
 import { AudioPlayer } from "@/components/evaluations/audio-player";
 import { ReciterActions } from "@/components/reciters/reciter-actions";
+import { isCoordinator } from "@/lib/permissions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -23,7 +24,7 @@ function StarRating({ value }: { value: number | null }) {
 export default async function ReciterProfilePage({ params }: Props) {
   const { id } = await params;
   const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
+  const isAdmin = isCoordinator(session?.user?.role);
 
   // Members can only view their own profile
   if (!isAdmin && session?.user?.id !== id) redirect("/kalaams");
@@ -31,6 +32,7 @@ export default async function ReciterProfilePage({ params }: Props) {
   const reciter = await db.user.findUnique({
     where: { id },
     include: {
+      party: { select: { name: true } },
       evaluations: {
         orderBy: { session: { date: "desc" } },
         include: {
@@ -63,8 +65,8 @@ export default async function ReciterProfilePage({ params }: Props) {
             >
               {reciter.isActive ? "Active" : "Inactive"}
             </Badge>
-            {reciter.role !== "PARTY_MEMBER" && (
-              <Badge variant="outline">{reciter.role === "GOD" ? "God" : "Admin"}</Badge>
+            {reciter.role !== "PM" && reciter.role !== "IM" && (
+              <Badge variant="outline">{{ GOD: "God", MC: "MC", PC: "PC" }[reciter.role] ?? reciter.role}</Badge>
             )}
           </div>
           {isAdmin && (
@@ -77,8 +79,8 @@ export default async function ReciterProfilePage({ params }: Props) {
           )}
         </div>
         <p className="text-muted-foreground text-sm">@{reciter.username}</p>
-        {reciter.partyName && (
-          <p className="text-muted-foreground text-sm">{reciter.partyName}</p>
+        {reciter.party?.name && (
+          <p className="text-muted-foreground text-sm">{reciter.party.name}</p>
         )}
         {reciter.grade && (
           <div className="mt-1 flex items-center gap-2">

@@ -12,70 +12,122 @@ const adapter = new PrismaPg(pool);
 const db = new (PrismaClient as any)({ adapter }) as InstanceType<typeof PrismaClient>;
 
 async function main() {
-  console.log("Seeding database…");
+  console.log("Seeding database (MVP 3 — clean slate)…");
 
-  // ── Users ──────────────────────────────────────────────────────────────────
+  // ── Passwords ──────────────────────────────────────────────────────────────
   const godPwd    = await hash(process.env.SEED_GOD_PASSWORD    ?? "admin@123", 12);
-  const adminPwd  = await hash(process.env.SEED_ADMIN_PASSWORD  ?? "admin@123", 12);
+  const mcPwd     = await hash(process.env.SEED_MC_PASSWORD     ?? "admin@123", 12);
+  const pcPwd     = await hash(process.env.SEED_PC_PASSWORD     ?? "admin@123", 12);
   const memberPwd = await hash(process.env.SEED_MEMBER_PASSWORD ?? "user@123",  12);
 
-  // God
-  await db.user.upsert({
+  // ── GOD (developer) ────────────────────────────────────────────────────────
+  const god = await db.user.upsert({
     where: { username: "god" },
-    create: { username: "god", displayName: "Admin", password: godPwd, role: "GOD" },
+    create: { username: "god", displayName: "Developer", password: godPwd, role: "GOD" },
     update: { password: godPwd },
   });
-  console.log("✓ God:   god");
+  console.log("✓ GOD:  god");
 
-  // Named admins
-  const admins = [
-    { username: "husain.rassawala", displayName: "Husain Rassawala" },
-    { username: "husain.vohra",     displayName: "Husain Vohra"     },
-  ];
-  for (const u of admins) {
-    await db.user.upsert({
-      where: { username: u.username },
-      create: { ...u, password: adminPwd, role: "ADMIN" },
-      update: { password: adminPwd },
-    });
-    console.log(`✓ Admin: ${u.username}`);
-  }
+  // ── MC — Mauze Coordinators ────────────────────────────────────────────────
+  const mc1 = await db.user.upsert({
+    where: { username: "husain.rassawala" },
+    create: { username: "husain.rassawala", displayName: "Husain Rassawala", password: mcPwd, role: "MC" },
+    update: { password: mcPwd, role: "MC" },
+  });
+  const mc2 = await db.user.upsert({
+    where: { username: "husain.vohra" },
+    create: { username: "husain.vohra", displayName: "Husain Vohra", password: mcPwd, role: "MC" },
+    update: { password: mcPwd, role: "MC" },
+  });
+  console.log("✓ MC:   husain.rassawala, husain.vohra");
 
-  // Members
-  const members = [
-    { username: "mufaddal.poonawala",   displayName: "Mufaddal Poonawala"   },
-    { username: "murtaza.vajihee",      displayName: "Murtaza Vajihee"      },
-    { username: "hakimuddin.attawala",  displayName: "Hakimuddin Attawala"  },
-    { username: "abdulqadir.dhanerawala", displayName: "AbdulQadir Dhanerawala" },
-  ];
-  for (const u of members) {
-    await db.user.upsert({
-      where: { username: u.username },
-      create: { ...u, password: memberPwd, role: "PARTY_MEMBER" },
-      update: { password: memberPwd },
-    });
-    console.log(`✓ Member: ${u.username}`);
-  }
+  // ── PC — Party Coordinators (created without partyId first) ───────────────
+  const pc1 = await db.user.upsert({
+    where: { username: "mufaddal.poonawala" },
+    create: { username: "mufaddal.poonawala", displayName: "Mufaddal Poonawala", password: pcPwd, role: "PC" },
+    update: { password: pcPwd, role: "PC" },
+  });
+  const pc2 = await db.user.upsert({
+    where: { username: "murtaza.vajihee" },
+    create: { username: "murtaza.vajihee", displayName: "Murtaza Vajihee", password: pcPwd, role: "PC" },
+    update: { password: pcPwd, role: "PC" },
+  });
+  console.log("✓ PC:   mufaddal.poonawala, murtaza.vajihee");
+
+  // ── PM — Party Members (created without partyId first) ────────────────────
+  const pm1 = await db.user.upsert({
+    where: { username: "hakimuddin.attawala" },
+    create: { username: "hakimuddin.attawala", displayName: "Hakimuddin Attawala", password: memberPwd, role: "PM" },
+    update: { password: memberPwd, role: "PM" },
+  });
+  const pm2 = await db.user.upsert({
+    where: { username: "abdulqadir.dhanerawala" },
+    create: { username: "abdulqadir.dhanerawala", displayName: "AbdulQadir Dhanerawala", password: memberPwd, role: "PM" },
+    update: { password: memberPwd, role: "PM" },
+  });
+  const pm3 = await db.user.upsert({
+    where: { username: "taher.shujauddin" },
+    create: { username: "taher.shujauddin", displayName: "Taher Shujauddin", password: memberPwd, role: "PM" },
+    update: { password: memberPwd, role: "PM" },
+  });
+  console.log("✓ PM:   hakimuddin.attawala, abdulqadir.dhanerawala, taher.shujauddin");
+
+  // ── IM — Individual Member (no party) ─────────────────────────────────────
+  const im1 = await db.user.upsert({
+    where: { username: "ali.individual" },
+    create: { username: "ali.individual", displayName: "Ali (Individual)", password: memberPwd, role: "IM" },
+    update: { password: memberPwd, role: "IM" },
+  });
+  console.log("✓ IM:   ali.individual");
+
+  // ── Parties ────────────────────────────────────────────────────────────────
+  const party1 = await db.party.upsert({
+    where: { name: "Anjuman Hussainia" },
+    create: {
+      name: "Anjuman Hussainia",
+      description: "Main party",
+      coordinatorId: pc1.id,
+    },
+    update: { coordinatorId: pc1.id },
+  });
+  const party2 = await db.party.upsert({
+    where: { name: "Markazi Party" },
+    create: {
+      name: "Markazi Party",
+      description: "Second party",
+      coordinatorId: pc2.id,
+    },
+    update: { coordinatorId: pc2.id },
+  });
+  console.log("✓ Parties: Anjuman Hussainia, Markazi Party");
+
+  // Assign PMs and PCs to their parties
+  await db.user.update({ where: { id: pc1.id },  data: { partyId: party1.id } });
+  await db.user.update({ where: { id: pm1.id },  data: { partyId: party1.id } });
+  await db.user.update({ where: { id: pm2.id },  data: { partyId: party1.id } });
+  await db.user.update({ where: { id: pc2.id },  data: { partyId: party2.id } });
+  await db.user.update({ where: { id: pm3.id },  data: { partyId: party2.id } });
+  console.log("✓ Party members assigned");
 
   // ── Kalaams ────────────────────────────────────────────────────────────────
   const kalaams = [
     // Marasiya
-    { title: "Matami",                    category: "MARASIYA" as const },
-    { title: "Suraj se zara kehdo",       category: "MARASIYA" as const },
-    { title: "Mazlum e Karbala ko",       category: "MARASIYA" as const },
-    { title: "Zalzalo me duniya thi",     category: "MARASIYA" as const },
-    { title: "Sibte rasool lut gaya",     category: "MARASIYA" as const },
+    { title: "Matami",                                                    category: "MARASIYA" as const },
+    { title: "Suraj se zara kehdo",                                       category: "MARASIYA" as const },
+    { title: "Mazlum e Karbala ko",                                       category: "MARASIYA" as const },
+    { title: "Zalzalo me duniya thi",                                     category: "MARASIYA" as const },
+    { title: "Sibte rasool lut gaya",                                     category: "MARASIYA" as const },
     // Salaam
-    { title: "Ye pukari zainab e khasta tan",              category: "SALAAM" as const },
-    { title: "Dekhe madina sara",                          category: "SALAAM" as const },
-    { title: "Kafla e husaini ki ye shaan he",             category: "SALAAM" as const },
-    { title: "Ran me ye sitam aale payambar pe hua he",   category: "SALAAM" as const },
+    { title: "Ye pukari zainab e khasta tan",                             category: "SALAAM" as const },
+    { title: "Dekhe madina sara",                                         category: "SALAAM" as const },
+    { title: "Kafla e husaini ki ye shaan he",                            category: "SALAAM" as const },
+    { title: "Ran me ye sitam aale payambar pe hua he",                   category: "SALAAM" as const },
     // Madeh
-    { title: "Ae shahe aali qadr",        category: "MADEH" as const },
-    { title: "Manind andaleeb ke",        category: "MADEH" as const },
+    { title: "Ae shahe aali qadr",                                        category: "MADEH" as const },
+    { title: "Manind andaleeb ke",                                        category: "MADEH" as const },
   ];
 
-  const kalaamMap: Record<string, string> = {}; // title -> id
+  const kalaamMap: Record<string, string> = {};
   for (const k of kalaams) {
     let rec = await db.kalaam.findFirst({ where: { title: k.title } });
     if (!rec) rec = await db.kalaam.create({ data: k });
@@ -83,27 +135,15 @@ async function main() {
   }
   console.log(`✓ ${kalaams.length} kalaams seeded`);
 
-  // ── Sample session for today ───────────────────────────────────────────────
-  const today = new Date();
-  today.setHours(20, 0, 0, 0); // 8 PM
-
-  // Pick one from each category for the session
-  const sessionKalaamIds = [
-    kalaamMap["Matami"],                          // Marasiya
-    kalaamMap["Ye pukari zainab e khasta tan"],   // Salaam
-    kalaamMap["Ae shahe aali qadr"],              // Madeh
+  // ── Sample prerequisites ───────────────────────────────────────────────────
+  const sampleKalaamIds = [
+    kalaamMap["Matami"],
+    kalaamMap["Ye pukari zainab e khasta tan"],
+    kalaamMap["Ae shahe aali qadr"],
   ];
-
-  // Use all active non-GOD users as attendees
-  const allUsers = await db.user.findMany({
-    where: { isActive: true, role: { not: "GOD" } },
-    select: { id: true },
-  });
-  const memberIds = allUsers.map((u: { id: string }) => u.id);
-
-  // Mark all prerequisites done for every member × every session kalaam
-  for (const userId of memberIds) {
-    for (const kalaamId of sessionKalaamIds) {
+  const partyMemberIds = [pm1.id, pm2.id, pm3.id];
+  for (const userId of partyMemberIds) {
+    for (const kalaamId of sampleKalaamIds) {
       await db.kalaamPrerequisite.upsert({
         where: { userId_kalaamId: { userId, kalaamId } },
         create: { userId, kalaamId, lehenDone: true, hifzDone: true },
@@ -111,35 +151,41 @@ async function main() {
       });
     }
   }
+  console.log("✓ Sample prerequisites set (lehenDone + hifzDone) for party members");
 
-  // Create the session (skip if one exists for today already)
-  const existing = await db.session.findFirst({
+  // ── Sample session (party-scoped to Anjuman Hussainia) ────────────────────
+  const today = new Date();
+  today.setHours(20, 0, 0, 0);
+
+  const existingSession = await db.session.findFirst({
     where: { date: { gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()) } },
   });
-  if (!existing) {
+  if (!existingSession) {
     await db.session.create({
       data: {
         date: today,
-        notes: "Inaugural practice session",
+        notes: "Inaugural Anjuman Hussainia practice session",
+        createdById: pc1.id,
+        partyId: party1.id,
         kalaams: {
-          create: sessionKalaamIds.map((kalaamId) => ({ kalaamId })),
+          create: sampleKalaamIds.map((kalaamId) => ({ kalaamId })),
         },
         attendees: {
-          create: memberIds.map((userId: string) => ({ userId })),
+          create: [pc1.id, pm1.id, pm2.id].map((userId) => ({ userId })),
         },
       },
     });
-    console.log("✓ Sample session created for today with 1 Marasiya, 1 Salaam, 1 Madeh");
+    console.log("✓ Sample session created (Anjuman Hussainia, today)");
   } else {
     console.log("ℹ  Session for today already exists — skipped");
   }
 
   console.log("\n✅ Seed complete!");
-  console.log("   God:    god");
-  console.log("   Admins: husain.rassawala, husain.vohra");
-  console.log("   Members: mufaddal.poonawala, murtaza.vajihee,");
-  console.log("            hakimuddin.attawala, abdulqadir.dhanerawala");
-  console.log("   Passwords set via SEED_GOD_PASSWORD / SEED_ADMIN_PASSWORD / SEED_MEMBER_PASSWORD env vars");
+  console.log("   GOD:  god / admin@123");
+  console.log("   MC:   husain.rassawala, husain.vohra / admin@123");
+  console.log("   PC:   mufaddal.poonawala (Anjuman Hussainia), murtaza.vajihee (Markazi Party) / admin@123");
+  console.log("   PM:   hakimuddin.attawala, abdulqadir.dhanerawala (Anjuman), taher.shujauddin (Markazi) / user@123");
+  console.log("   IM:   ali.individual (no party) / user@123");
 }
 
 main()

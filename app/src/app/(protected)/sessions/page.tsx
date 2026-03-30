@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils-date";
+import { can, Permission } from "@/lib/permissions";
 
 const CATEGORY_LABELS: Record<string, string> = {
   MARASIYA: "Marasiya",
@@ -14,16 +15,47 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default async function SessionsPage() {
   const session = await auth();
-  const isPrivileged =
-    session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
+  const role = session?.user?.role ?? "";
+  const userId = session?.user?.id ?? "";
+  const partyId = session?.user?.partyId ?? null;
+
+  const canCreateAny = can(role, Permission.SESSION_CREATE_ANY);
+  const canCreateParty = can(role, Permission.SESSION_CREATE_PARTY);
+  const canViewAll = can(role, Permission.SESSION_VIEW_ALL);
+  const canViewParty = can(role, Permission.SESSION_VIEW_PARTY);
+
+  // Build scoped where clause
+  type WhereClause = {
+    OR?: Array<Record<string, unknown>>;
+    attendees?: { some: { userId: string } };
+  };
+
+  let where: WhereClause = {};
+  if (!canViewAll) {
+    if (canViewParty && partyId) {
+      where = {
+        OR: [
+          { partyId },
+          { attendees: { some: { userId } } },
+        ],
+      };
+    } else {
+      // PM / IM: only sessions they attended
+      where = { attendees: { some: { userId } } };
+    }
+  }
 
   const sessions = await db.session.findMany({
+    where,
     orderBy: { date: "desc" },
     include: {
       kalaams: { include: { kalaam: { select: { title: true, category: true } } } },
+      party: { select: { name: true } },
       _count: { select: { attendees: true } },
     },
   });
+
+  const canCreate = canCreateAny || canCreateParty;
 
   return (
     <div>
@@ -34,7 +66,7 @@ export default async function SessionsPage() {
             {sessions.length} session{sessions.length !== 1 ? "s" : ""}
           </p>
         </div>
-        {isPrivileged && (
+        {canCreate && (
           <Link href="/sessions/new">
             <Button>+ New Session</Button>
           </Link>
@@ -44,7 +76,7 @@ export default async function SessionsPage() {
       {sessions.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-muted-foreground text-lg">No sessions recorded yet.</p>
-          {isPrivileged && (
+          {canCreate && (
             <Link href="/sessions/new">
               <Button className="mt-4">Create First Session</Button>
             </Link>
@@ -58,9 +90,14 @@ export default async function SessionsPage() {
               <Link key={s.id} href={`/sessions/${s.id}`}>
                 <div className="px-5 py-4 flex items-center justify-between gap-4 hover:bg-accent/50 transition-colors cursor-pointer">
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs text-muted-foreground font-mono block mb-1">
-                      {formatDate(s.date)}
-                    </span>
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {formatDate(s.date)}
+                      </span>
+                      {s.party && (
+                        <Badge variant="outline" className="text-xs">{s.party.name}</Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {kalaamList.slice(0, 3).map((k, i) => (
                         <span key={i} className="text-foreground text-sm font-medium">
@@ -96,3 +133,4 @@ export default async function SessionsPage() {
     </div>
   );
 }
+

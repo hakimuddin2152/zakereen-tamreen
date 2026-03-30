@@ -6,7 +6,7 @@ import { z } from "zod";
 type Params = { params: Promise<{ id: string }> };
 
 const roleSchema = z.object({
-  role: z.enum(["ADMIN", "PARTY_MEMBER"]),
+  role: z.enum(["MC", "PC", "PM", "IM"]),
 });
 
 export async function PATCH(req: NextRequest, { params }: Params) {

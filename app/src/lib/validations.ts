@@ -12,13 +12,11 @@ export const createReciterSchema = z.object({
     .max(32)
     .regex(/^[a-z0-9_]+$/, "Username: lowercase letters, numbers, underscores only"),
   displayName: z.string().min(1, "Display name is required").max(64),
-  partyName: z.string().max(100).optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 export const updateReciterSchema = z.object({
   displayName: z.string().min(1).max(64).optional(),
-  partyName: z.string().max(100).optional(),
   isActive: z.boolean().optional(),
   grade: z.enum(["A", "B", "C", "D"]).nullable().optional(),
 });
@@ -83,3 +81,62 @@ export const uploadRequestSchema = z.object({
   userId: z.string().cuid().optional(),
   kalaamId: z.string().cuid().optional(),
 });
+
+// Party
+export const createPartySchema = z.object({
+  name: z.string().min(1, "Name is required").max(100),
+  description: z.string().max(500).optional(),
+});
+
+export const updatePartySchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional().nullable(),
+  coordinatorId: z.string().cuid().optional().nullable(),
+});
+
+export const addPartyMemberSchema = z.object({
+  userId: z.string().cuid("Invalid user ID"),
+  role: z.enum(["PM"]).optional(), // optionally promote IM → PM
+});
+
+// Change own password
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+// Grade
+export const setGradeSchema = z.object({
+  grade: z.enum(["A", "B", "C", "D"]).nullable(),
+});
+
+// Eval requests
+export const createEvalRequestSchema = z.object({
+  kalaamId: z.string().cuid("Invalid kalaam ID"),
+  notes: z.string().max(500).optional(),
+});
+
+export const reviewEvalRequestSchema = z.object({
+  status: z.enum(["EVALUATED", "REJECTED"]),
+  ranking: z.number().int().min(1).max(5).nullable().optional(),
+  voiceRange: z.string().max(100).nullable().optional(),
+  evalNotes: z.string().max(1000).nullable().optional(),
+});
+
+// Majlis
+export const createMajlisSchema = z.object({
+  date: z.string().datetime({ offset: true }).or(z.string().date()),
+  occasion: z.string().max(200).optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+export const updateMajlisSchema = createMajlisSchema.partial();
+
+export const setMajlisSetlistSchema = z.object({
+  kalaamIds: z.array(z.string().cuid()).min(1),
+});
+
+export const setMajlisAssigneesSchema = z.object({
+  userIds: z.array(z.string().cuid()),
+});
+

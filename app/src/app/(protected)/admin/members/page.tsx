@@ -7,6 +7,8 @@ import { formatDate } from "@/lib/utils-date";
 import { AddReciterDialog } from "@/components/reciters/add-reciter-dialog";
 import { ReciterActions } from "@/components/reciters/reciter-actions";
 
+import { isCoordinator } from "@/lib/permissions";
+
 const GRADE_COLORS: Record<string, string> = {
   A: "border-green-600 text-green-600",
   B: "border-blue-500 text-blue-500",
@@ -17,13 +19,13 @@ const GRADE_COLORS: Record<string, string> = {
 export default async function MembersPage() {
   const session = await auth();
   const role = session?.user?.role;
-  if (role !== "ADMIN" && role !== "GOD") redirect("/kalaams");
+  if (!isCoordinator(role)) redirect("/kalaams");
 
   const members = await db.user.findMany({
     where: { role: { not: "GOD" } },
     orderBy: { displayName: "asc" },
     select: {
-      id: true, username: true, displayName: true, partyName: true,
+      id: true, username: true, displayName: true, party: { select: { name: true } },
       role: true, grade: true, isActive: true, createdAt: true,
       _count: { select: { attendances: true, evaluations: true } },
     },
@@ -76,8 +78,8 @@ export default async function MembersPage() {
                     )}
                   </div>
                   <p className="text-muted-foreground text-sm">@{m.username}</p>
-                  {m.partyName && (
-                    <p className="text-muted-foreground text-xs">{m.partyName}</p>
+                  {m.party?.name && (
+                    <p className="text-muted-foreground text-xs">{m.party.name}</p>
                   )}
                   <p className="text-muted-foreground text-xs mt-0.5">
                     {m._count.attendances} sessions · {m._count.evaluations} evaluations ·

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 interface Member {
   id: string;
   displayName: string;
-  partyName?: string | null;
+  party?: { name: string } | null;
 }
 
 interface Prereq {
@@ -91,19 +91,19 @@ export function AdminPrerequisiteTable({ kalaamId, members, initialPrereqs }: Pr
           <div key={m.id} className="px-5 py-3 flex items-center justify-between gap-3">
             <div>
               <p className="text-foreground text-sm font-medium">{m.displayName}</p>
-              {m.partyName && (
-                <p className="text-muted-foreground text-xs">{m.partyName}</p>
+              {m.party?.name && (
+                <p className="text-muted-foreground text-xs">{m.party.name}</p>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Toggle
-                label="Lehen"
+                label="Grasped Lehen"
                 done={p.lehenDone}
                 loading={loadingKey === `${m.id}-lehenDone`}
                 onToggle={() => toggle(m.id, "lehenDone")}
               />
               <Toggle
-                label="Hifz"
+                label="Read Twice"
                 done={p.hifzDone}
                 loading={loadingKey === `${m.id}-hifzDone`}
                 onToggle={() => toggle(m.id, "hifzDone")}

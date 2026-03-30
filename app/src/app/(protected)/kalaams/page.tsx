@@ -3,11 +3,11 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { KalaamBrowser } from "@/components/kalaams/kalaam-browser";
+import { isCoordinator } from "@/lib/permissions";
 
 export default async function KalaamsPage() {
   const session = await auth();
-  const isPrivileged =
-    session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
+  const isPrivileged = isCoordinator(session?.user?.role);
 
   const kalaams = await db.kalaam.findMany({
     orderBy: { title: "asc" },

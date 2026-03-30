@@ -3,12 +3,13 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hash } from "bcryptjs";
 import { resetPasswordSchema } from "@/lib/validations";
+import { isCoordinator } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
+  if (!isCoordinator(session?.user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

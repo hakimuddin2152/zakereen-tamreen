@@ -3,16 +3,17 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hash } from "bcryptjs";
 import { createReciterSchema, updateReciterSchema } from "@/lib/validations";
+import { isCoordinator } from "@/lib/permissions";
 
 export async function GET() {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
+  if (!isCoordinator(session?.user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const reciters = await db.user.findMany({
     orderBy: { displayName: "asc" },
-    select: { id: true, username: true, displayName: true, partyName: true, role: true, grade: true, isActive: true, createdAt: true },
+    select: { id: true, username: true, displayName: true, party: { select: { name: true } }, role: true, grade: true, isActive: true, createdAt: true },
   });
 
   return NextResponse.json(reciters);
@@ -20,7 +21,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
+  if (!isCoordinator(session?.user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { username, displayName, partyName, password } = parsed.data;
+  const { username, displayName, password } = parsed.data;
 
   const existing = await db.user.findUnique({ where: { username } });
   if (existing) {
@@ -45,8 +46,8 @@ export async function POST(req: NextRequest) {
 
   const hashedPassword = await hash(password, 12);
   const user = await db.user.create({
-    data: { username, displayName, partyName: partyName ?? null, password: hashedPassword, role: "PARTY_MEMBER" },
-    select: { id: true, username: true, displayName: true, partyName: true, role: true, grade: true, isActive: true, createdAt: true },
+    data: { username, displayName, password: hashedPassword, role: "IM" },
+    select: { id: true, username: true, displayName: true, party: { select: { name: true } }, role: true, grade: true, isActive: true, createdAt: true },
   });
 
   return NextResponse.json(user, { status: 201 });

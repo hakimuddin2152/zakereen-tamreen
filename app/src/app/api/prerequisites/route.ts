@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updatePrerequisiteSchema } from "@/lib/validations";
+import { isCoordinator } from "@/lib/permissions";
 
 /**
  * GET /api/prerequisites?kalaamId=…
@@ -34,7 +35,7 @@ export async function PATCH(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const isPrivileged = session.user.role === "ADMIN" || session.user.role === "GOD";
+  const isPrivileged = isCoordinator(session.user.role);
   const targetUserId =
     isPrivileged
       ? (new URL(req.url).searchParams.get("userId") ?? session.user.id)

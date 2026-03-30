@@ -7,10 +7,14 @@ datasource db {
   provider = "postgresql"
 }
 
+// ── Enums ──────────────────────────────────────────────────────────────────
+
 enum Role {
-  GOD
-  ADMIN
-  PARTY_MEMBER
+  GOD    // Developer / App Owner — bypasses all permission checks
+  MC     // Mauze Coordinator — top operational role; multiple allowed
+  PC     // Party Coordinator — manages one party; inherits PM permissions
+  PM     // Party Member — belongs to a party
+  IM     // Individual Member — no party; same permissions as PM
 }
 
 enum KalaamCategory {
@@ -27,23 +31,55 @@ enum MemberGrade {
   D
 }
 
+enum EvalRequestStatus {
+  PENDING
+  EVALUATED
+  REJECTED
+}
+
+// ── Party ──────────────────────────────────────────────────────────────────
+
+model Party {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  description   String?
+  coordinatorId String?  @unique   // PC or MC acting as coordinator; one per party
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  coordinator User?     @relation("PartyCoordinator", fields: [coordinatorId], references: [id])
+  members     User[]    @relation("PartyMembers")
+  sessions    Session[] @relation("PartySessions")
+}
+
+// ── User ───────────────────────────────────────────────────────────────────
+
 model User {
   id          String       @id @default(cuid())
   username    String       @unique
   displayName String
-  partyName   String?
+  partyId     String?      // null for MC (unaffiliated) and IM; set for PM and PC members
   password    String
-  role        Role         @default(PARTY_MEMBER)
+  role        Role         @default(IM)
   grade       MemberGrade?
   isActive    Boolean      @default(true)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  party            Party?              @relation("PartyMembers", fields: [partyId], references: [id])
+  coordinatedParty Party?              @relation("PartyCoordinator")
   attendances      SessionAttendee[]
   evaluations      ReciterEvaluation[]
   prerequisites    KalaamPrerequisite[]
   kalaamRecordings KalaamRecording[]
+  recordingShares  KalaamRecordingShare[]
+  evalRequestsMade KalaamEvalRequest[] @relation("EvalRequests")
+  evalRequestsDone KalaamEvalRequest[] @relation("EvalsDone")
+  majlisAssignments MajlisKalaamMember[]
+  sessionsCreated  Session[]           @relation("SessionsCreated")
 }
+
+// ── Kalaam ─────────────────────────────────────────────────────────────────
 
 model Kalaam {
   id            String         @id @default(cuid())
@@ -64,55 +100,63 @@ model Kalaam {
   prerequisites  KalaamPrerequisite[]
   evaluations    ReciterEvaluation[]
   recordings     KalaamRecording[]
+  majlisKalaams  MajlisKalaam[]
+  evalRequests   KalaamEvalRequest[]
 }
 
-model Session {
-  id        String   @id @default(cuid())
-  date      DateTime
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ── Session ────────────────────────────────────────────────────────────────
 
+model Session {
+  id          String   @id @default(cuid())
+  date        DateTime
+  notes       String?
+  createdById String
+  partyId     String?  // null = MC open session; set = PC party session
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User              @relation("SessionsCreated", fields: [createdById], references: [id])
+  party       Party?            @relation("PartySessions", fields: [partyId], references: [id])
   kalaams     SessionKalaam[]
   attendees   SessionAttendee[]
   evaluations ReciterEvaluation[]
 }
 
 model SessionKalaam {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   sessionId String
   kalaamId  String
 
-  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  kalaam    Kalaam  @relation(fields: [kalaamId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kalaam  Kalaam  @relation(fields: [kalaamId], references: [id])
 
   @@unique([sessionId, kalaamId])
 }
 
-model KalaamPrerequisite {
-  id        String  @id @default(cuid())
-  userId    String
-  kalaamId  String
-  lehenDone Boolean @default(false)
-  hifzDone  Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  kalaam    Kalaam @relation(fields: [kalaamId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, kalaamId])
-}
-
 model SessionAttendee {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   sessionId String
   userId    String
 
-  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user      User    @relation(fields: [userId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
 
   @@unique([sessionId, userId])
+}
+
+model KalaamPrerequisite {
+  id        String   @id @default(cuid())
+  userId    String
+  kalaamId  String
+  lehenDone Boolean  @default(false)
+  hifzDone  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kalaam Kalaam @relation(fields: [kalaamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kalaamId])
 }
 
 model ReciterEvaluation {
@@ -128,12 +172,14 @@ model ReciterEvaluation {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  session       Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user          User    @relation(fields: [userId], references: [id])
-  kalaam        Kalaam? @relation(fields: [kalaamId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+  kalaam  Kalaam? @relation(fields: [kalaamId], references: [id])
 
   @@unique([sessionId, userId, kalaamId])
 }
+
+// ── Recordings ─────────────────────────────────────────────────────────────
 
 model KalaamRecording {
   id        String   @id @default(cuid())
@@ -145,5 +191,77 @@ model KalaamRecording {
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   kalaam Kalaam @relation(fields: [kalaamId], references: [id], onDelete: Cascade)
+  shares KalaamRecordingShare[]
+}
+
+model KalaamRecordingShare {
+  id           String   @id @default(cuid())
+  recordingId  String
+  sharedWithId String
+  sharedAt     DateTime @default(now())
+
+  recording  KalaamRecording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  sharedWith User            @relation(fields: [sharedWithId], references: [id], onDelete: Cascade)
+
+  @@unique([recordingId, sharedWithId])
+}
+
+// ── Kalaam Evaluation Requests ─────────────────────────────────────────────
+
+model KalaamEvalRequest {
+  id          String            @id @default(cuid())
+  userId      String
+  kalaamId    String
+  status      EvalRequestStatus @default(PENDING)
+  notes       String?           // requester note
+  requestedAt DateTime          @default(now())
+  evaluatedAt DateTime?
+  evaluatorId String?
+  evalNotes   String?
+  ranking     Int?
+  voiceRange  String?
+
+  user      User   @relation("EvalRequests", fields: [userId], references: [id], onDelete: Cascade)
+  kalaam    Kalaam @relation(fields: [kalaamId], references: [id], onDelete: Cascade)
+  evaluator User?  @relation("EvalsDone", fields: [evaluatorId], references: [id])
+}
+
+// ── Majlis ─────────────────────────────────────────────────────────────────
+
+model Majlis {
+  id        String   @id @default(cuid())
+  date      DateTime
+  occasion  String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kalaams MajlisKalaam[]
+}
+
+model MajlisKalaam {
+  id       String @id @default(cuid())
+  majlisId String
+  kalaamId String
+
+  majlis    Majlis              @relation(fields: [majlisId], references: [id], onDelete: Cascade)
+  kalaam    Kalaam              @relation(fields: [kalaamId], references: [id])
+  assignees MajlisKalaamMember[]
+
+  @@unique([majlisId, kalaamId])
+}
+
+// Direct assignment — any user can be assigned to recite a kalaam.
+// MC: assigns any user. PC: own party members only (enforced in API).
+// Display groups by user.partyId → Party.name (or "Individual" if null).
+model MajlisKalaamMember {
+  id             String @id @default(cuid())
+  majlisKalaamId String
+  userId         String
+
+  majlisKalaam MajlisKalaam @relation(fields: [majlisKalaamId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([majlisKalaamId, userId])
 }
 

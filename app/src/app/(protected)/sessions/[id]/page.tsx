@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/utils-date";
 import { Badge } from "@/components/ui/badge";
 import { EvaluationTable } from "@/components/evaluations/evaluation-table";
 import { SessionActions } from "@/components/sessions/session-actions";
+import { isCoordinator } from "@/lib/permissions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -21,7 +22,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default async function SessionDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
+  const isAdmin = isCoordinator(session?.user?.role);
   const currentUserId = session?.user?.id;
 
   const dbSession = await db.session.findUnique({

@@ -25,6 +25,7 @@ async function authorizeUser(credentials: unknown) {
     name: user.displayName,
     email: user.username,
     role: user.role,
+    partyId: user.partyId,
   };
 }
 

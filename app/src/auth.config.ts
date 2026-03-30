@@ -1,9 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
-
-function isPrivileged(role?: string) {
-  return role === "ADMIN" || role === "GOD";
-}
+import { isCoordinator } from "@/lib/permissions";
 
 export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt" },
@@ -13,7 +10,8 @@ export const authConfig: NextAuthConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role: string }).role;
+        token.role = (user as { role: string; partyId?: string | null }).role;
+        token.partyId = (user as { role: string; partyId?: string | null }).partyId ?? null;
       }
       return token;
     },
@@ -21,6 +19,7 @@ export const authConfig: NextAuthConfig = {
       if (token) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.partyId = (token.partyId as string | null) ?? null;
       }
       return session;
     },
@@ -44,7 +43,7 @@ export const authConfig: NextAuthConfig = {
         nextUrl.pathname.startsWith("/admin") ||
         nextUrl.pathname === "/reciters";
 
-      if (isAdminPath && !isPrivileged(role)) {
+      if (isAdminPath && !isCoordinator(role)) {
         return NextResponse.redirect(new URL("/kalaams", nextUrl));
       }
 

@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils-date";
+import { can, Permission } from "@/lib/permissions";
+import { EvalRequestButton } from "@/components/evaluations/eval-request-button";
 
 const CATEGORY_LABELS: Record<string, string> = {
   MARASIYA: "Marasiya",
@@ -27,6 +29,8 @@ interface KalaamEntry {
   latestRanking: number | null;
   lehenDone: boolean;
   hifzDone: boolean;
+  recordingCount: number;
+  hasPendingEval: boolean;
 }
 
 async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, KalaamEntry[]>> {
@@ -36,26 +40,26 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
     select: { sessionId: true, session: { select: { id: true, date: true } } },
   });
 
-  if (attended.length === 0) return { Ready: [], InProgress: [], AttendedPractice: [] };
-
   const sessionIds = attended.map((a) => a.session.id);
   const sessionById = new Map(attended.map((a) => [a.session.id, a.session]));
 
   // Step 2: all kalaams in those sessions
-  const sessionKalaams = await db.sessionKalaam.findMany({
-    where: { sessionId: { in: sessionIds } },
-    include: { kalaam: { select: { id: true, title: true, category: true } } },
-  });
-
-  if (sessionKalaams.length === 0) return { Ready: [], InProgress: [], AttendedPractice: [] };
+  const sessionKalaams = sessionIds.length > 0
+    ? await db.sessionKalaam.findMany({
+        where: { sessionId: { in: sessionIds } },
+        include: { kalaam: { select: { id: true, title: true, category: true } } },
+      })
+    : [];
 
   // Step 3: all evaluations for this user across those sessions
-  const evaluations = await db.reciterEvaluation.findMany({
-    where: { userId, sessionId: { in: sessionIds } },
-  });
+  const evaluations = sessionIds.length > 0
+    ? await db.reciterEvaluation.findMany({
+        where: { userId, sessionId: { in: sessionIds } },
+      })
+    : [];
   const evalByKey = new Map(evaluations.map((e) => [`${e.sessionId}_${e.kalaamId ?? ""}`, e]));
 
-  // Step 4: build per-kalaam data — collect ALL sessions and track latest eval
+  // Step 4: build per-kalaam data from sessions
   const kalaamMap = new Map<
     string,
     {
@@ -105,12 +109,62 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
     data.sessions.sort((a, b) => b.date.getTime() - a.date.getTime());
   }
 
-  // Step 5: prerequisites
+  // Step 5: eval requests — adds kalaams not in any session, and updates rankings for completed evals
+  const evalRequests = await db.kalaamEvalRequest.findMany({
+    where: { userId },
+    include: { kalaam: { select: { id: true, title: true, category: true } } },
+    orderBy: { requestedAt: "asc" },
+  });
+
+  for (const req of evalRequests) {
+    const kId = req.kalaamId;
+    const existing = kalaamMap.get(kId);
+
+    if (!existing) {
+      // Kalaam came through eval request only — add it to the map
+      kalaamMap.set(kId, {
+        kalaamId: kId,
+        kalaamTitle: req.kalaam.title,
+        kalaamCategory: req.kalaam.category,
+        sessions: [],
+        latestEvalDate: req.evaluatedAt ?? null,
+        latestEvalRanking: req.ranking ?? null,
+        hasEval: req.status === "EVALUATED",
+      });
+    } else if (req.status === "EVALUATED" && req.ranking !== null) {
+      // Update existing entry if this eval request result is newer
+      const reqDate = req.evaluatedAt ?? req.requestedAt;
+      if (existing.latestEvalDate === null || reqDate > existing.latestEvalDate) {
+        existing.latestEvalDate = reqDate;
+        existing.latestEvalRanking = req.ranking;
+        existing.hasEval = true;
+      }
+    }
+  }
+
   const kalaamIds = Array.from(kalaamMap.keys());
+  if (kalaamIds.length === 0) return { Ready: [], InProgress: [], AttendedPractice: [] };
   const prerequisites = await db.kalaamPrerequisite.findMany({
     where: { userId, kalaamId: { in: kalaamIds } },
   });
   const prereqByKalaam = new Map(prerequisites.map((p) => [p.kalaamId, p]));
+
+  // Step 7: recording count per kalaam for this user
+  const recordings = await db.kalaamRecording.findMany({
+    where: { userId, kalaamId: { in: kalaamIds } },
+    select: { kalaamId: true },
+  });
+  const recordingCountByKalaam = new Map<string, number>();
+  for (const r of recordings) {
+    recordingCountByKalaam.set(r.kalaamId, (recordingCountByKalaam.get(r.kalaamId) ?? 0) + 1);
+  }
+
+  // Step 8: pending eval requests for this user
+  const pendingEvals = await db.kalaamEvalRequest.findMany({
+    where: { userId, kalaamId: { in: kalaamIds }, status: "PENDING" },
+    select: { kalaamId: true },
+  });
+  const pendingEvalKalaamIds = new Set(pendingEvals.map((e) => e.kalaamId));
 
   const result: Record<KalaamStatus, KalaamEntry[]> = { Ready: [], InProgress: [], AttendedPractice: [] };
 
@@ -124,6 +178,8 @@ async function getMyKalaams(userId: string): Promise<Record<KalaamStatus, Kalaam
       latestRanking: data.latestEvalRanking,
       lehenDone: prereq?.lehenDone ?? false,
       hifzDone: prereq?.hifzDone ?? false,
+      recordingCount: recordingCountByKalaam.get(data.kalaamId) ?? 0,
+      hasPendingEval: pendingEvalKalaamIds.has(data.kalaamId),
       status: "AttendedPractice",
     };
 
@@ -184,7 +240,7 @@ function SessionList({ sessions }: { sessions: SessionRef[] }) {
   );
 }
 
-function KalaamCard({ entry }: { entry: KalaamEntry }) {
+function KalaamCard({ entry, isCoordinator }: { entry: KalaamEntry; isCoordinator: boolean }) {
   if (entry.status === "AttendedPractice") {
     return (
       <div className="px-5 py-4">
@@ -195,10 +251,20 @@ function KalaamCard({ entry }: { entry: KalaamEntry }) {
           <Badge variant="secondary" className="text-xs">
             {CATEGORY_LABELS[entry.kalaamCategory] ?? entry.kalaamCategory}
           </Badge>
-          <PrereqBadge done={entry.lehenDone} label="Lehen" />
-          <PrereqBadge done={entry.hifzDone} label="Hifz" />
+          <PrereqBadge done={entry.lehenDone} label="Grasped Lehen" />
+          <PrereqBadge done={entry.hifzDone} label="Go through" />
         </div>
         <SessionList sessions={entry.sessions} />
+        <div className="mt-2">
+          <EvalRequestButton
+            kalaamId={entry.kalaamId}
+            lehenDone={entry.lehenDone}
+            hifzDone={entry.hifzDone}
+            hasRecording={entry.recordingCount > 0}
+            isCoordinator={isCoordinator}
+            isPending={entry.hasPendingEval}
+          />
+        </div>
       </div>
     );
   }
@@ -214,10 +280,20 @@ function KalaamCard({ entry }: { entry: KalaamEntry }) {
             <Badge variant="secondary" className="text-xs">
               {CATEGORY_LABELS[entry.kalaamCategory] ?? entry.kalaamCategory}
             </Badge>
-            <PrereqBadge done={entry.lehenDone} label="Lehen" />
-            <PrereqBadge done={entry.hifzDone} label="Hifz" />
+            <PrereqBadge done={entry.lehenDone} label="Grasped Lehen" />
+            <PrereqBadge done={entry.hifzDone} label="Read Twice" />
           </div>
           <SessionList sessions={entry.sessions} />
+          <div className="mt-2">
+            <EvalRequestButton
+              kalaamId={entry.kalaamId}
+              lehenDone={entry.lehenDone}
+              hifzDone={entry.hifzDone}
+              hasRecording={entry.recordingCount > 0}
+              isCoordinator={isCoordinator}
+              isPending={entry.hasPendingEval}
+            />
+          </div>
         </div>
         <StarRating value={entry.latestRanking} />
       </div>
@@ -230,11 +306,13 @@ function Section({
   items,
   badgeClass,
   emptyText,
+  isCoordinator,
 }: {
   title: string;
   items: KalaamEntry[];
   badgeClass: string;
   emptyText: string;
+  isCoordinator: boolean;
 }) {
   return (
     <section>
@@ -248,7 +326,7 @@ function Section({
         ) : (
           <div className="divide-y divide-border">
             {items.map((entry) => (
-              <KalaamCard key={entry.kalaamId} entry={entry} />
+              <KalaamCard key={entry.kalaamId} entry={entry} isCoordinator={isCoordinator} />
             ))}
           </div>
         )}
@@ -260,6 +338,9 @@ function Section({
 export default async function MyKalaamsPage() {
   const session = await auth();
   const userId = session!.user!.id;
+  const role = session!.user!.role ?? "";
+  const isCoordinator =
+    can(role, Permission.MAJLIS_ASSIGN_ANY) || can(role, Permission.MAJLIS_ASSIGN_PARTY);
 
   const { Ready, InProgress, AttendedPractice } = await getMyKalaams(userId);
 
@@ -278,18 +359,21 @@ export default async function MyKalaamsPage() {
           items={Ready}
           badgeClass="bg-green-600/20 text-green-400 border-green-600/30"
           emptyText="No kalaams rated 4+ yet. Keep practicing!"
+          isCoordinator={isCoordinator}
         />
         <Section
           title="In Progress"
           items={InProgress}
           badgeClass="bg-yellow-600/20 text-yellow-400 border-yellow-600/30"
           emptyText="No kalaams in progress."
+          isCoordinator={isCoordinator}
         />
         <Section
           title="Need More Practice"
           items={AttendedPractice}
           badgeClass="bg-blue-600/20 text-blue-400 border-blue-600/30"
           emptyText="No Kalaams to show here. Kalaams will appear here after you attend a practice session but don't meet the requirements to recite that kalaam due to low ranking or pending prerequisites."
+          isCoordinator={isCoordinator}
         />
       </div>
     </div>

@@ -27,7 +27,6 @@ export function AddReciterDialog() {
       username: data.get("username"),
       displayName: data.get("displayName"),
       password: data.get("password"),
-      partyName: data.get("partyName") || undefined,
     };
 
     if (data.get("password") !== data.get("confirmPassword")) {
@@ -83,13 +82,6 @@ export function AddReciterDialog() {
               placeholder="ali_hussain"
             />
             <p className="text-muted-foreground text-xs">Lowercase letters, numbers, underscores only</p>
-          </div>
-          <div className="space-y-2">
-            <Label>Party / Group Name</Label>
-            <Input
-              name="partyName"
-              placeholder="Hizbe Abbas Group 2"
-            />
           </div>
           <div className="space-y-2">
             <Label>Password *</Label>

@@ -3,12 +3,13 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { upsertEvaluationSchema } from "@/lib/validations";
 import { deleteAudioFile } from "@/lib/storage";
+import { isCoordinator } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string; userId: string }> };
 
 export async function PUT(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
+  if (!isCoordinator(session?.user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -55,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
+  if (!isCoordinator(session?.user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

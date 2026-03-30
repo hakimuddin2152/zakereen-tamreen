@@ -11,6 +11,8 @@ import { EditKalaamDialog } from "@/components/admin/edit-kalaam-dialog";
 import { AdminPrerequisiteTable } from "@/components/admin/admin-prerequisite-table";
 import { KalaamRecordings } from "@/components/kalaams/kalaam-recordings";
 import { PdfViewer } from "@/components/kalaams/pdf-viewer";
+import { isCoordinator } from "@/lib/permissions";
+import { EvalRequestButton } from "@/components/evaluations/eval-request-button";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -29,7 +31,7 @@ export default async function KalaamDetailPage({ params }: Props) {
   const userId = session!.user!.id;
   const isPrivileged = session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
 
-  const [kalaam, prereq, adminData, myRecordings] = await Promise.all([
+  const [kalaam, prereq, adminData, myRecordings, pendingEval] = await Promise.all([
     db.kalaam.findUnique({
       where: { id },
       include: {
@@ -54,7 +56,7 @@ export default async function KalaamDetailPage({ params }: Props) {
           // Exclude current user — they manage their own prereqs via "My Prerequisites"
           db.user.findMany({
             where: { isActive: true, role: { not: "GOD" }, id: { not: userId } },
-            select: { id: true, displayName: true, partyName: true },
+            select: { id: true, displayName: true, party: { select: { name: true } } },
             orderBy: { displayName: "asc" },
           }),
           db.kalaamPrerequisite.findMany({ where: { kalaamId: id } }),
@@ -65,6 +67,10 @@ export default async function KalaamDetailPage({ params }: Props) {
       orderBy: { createdAt: "desc" },
       take: 3,
     }),
+    db.kalaamEvalRequest.findFirst({
+      where: { userId, kalaamId: id, status: "PENDING" },
+      select: { id: true },
+    }),
   ]);
 
   if (!kalaam) notFound();
@@ -72,6 +78,8 @@ export default async function KalaamDetailPage({ params }: Props) {
   const sessions = kalaam.sessionKalaams.map((sk) => sk.session);
   const allMembers = adminData?.[0] ?? [];
   const allPrereqs = adminData?.[1] ?? [];
+  const role = session?.user?.role ?? "";
+  const userIsCoordinator = isCoordinator(role);
 
   return (
     <div className="max-w-2xl">
@@ -137,14 +145,24 @@ export default async function KalaamDetailPage({ params }: Props) {
           <PrerequisiteToggle
             kalaamId={id}
             field="lehenDone"
-            label="Lehen"
+            label="Grasped Lehen"
             initialValue={prereq?.lehenDone ?? false}
           />
           <PrerequisiteToggle
             kalaamId={id}
             field="hifzDone"
-            label="Hifz"
+            label="Read Twice"
             initialValue={prereq?.hifzDone ?? false}
+          />
+        </div>
+        <div className="px-5 pb-4">
+          <EvalRequestButton
+            kalaamId={id}
+            lehenDone={prereq?.lehenDone ?? false}
+            hifzDone={prereq?.hifzDone ?? false}
+            hasRecording={myRecordings.length > 0}
+            isCoordinator={userIsCoordinator}
+            isPending={pendingEval !== null}
           />
         </div>
       </div>

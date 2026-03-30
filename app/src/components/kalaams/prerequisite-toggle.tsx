@@ -48,7 +48,7 @@ export function PrerequisiteToggle({ kalaamId, field, label, initialValue }: Pro
         className="min-w-[120px]"
       >
         {done ? "✓ " : "✗ "}
-        {label} {done ? "Done" : "Pending"}
+        {label} {done ? "" : "Pending"}
       </Button>
     </div>
   );

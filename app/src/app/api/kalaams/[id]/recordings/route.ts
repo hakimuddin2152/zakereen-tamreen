@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isCoordinator } from "@/lib/permissions";
 import { deleteAudioFile } from "@/lib/storage";
 import { saveRecordingSchema } from "@/lib/validations";
 
@@ -85,7 +86,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   // Only owner or admin can delete
-  if (recording.userId !== userId && role !== "ADMIN" && role !== "GOD") {
+  if (recording.userId !== userId && !isCoordinator(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

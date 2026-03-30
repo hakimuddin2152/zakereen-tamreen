@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { can, isCoordinator, Permission } from "@/lib/permissions";
+import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 
 interface NavbarProps {
   user: { name?: string | null; role: string; id: string };
@@ -21,19 +23,22 @@ interface NavbarProps {
 
 export function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
-  const isPrivileged = user.role === "ADMIN" || user.role === "GOD";
   const isGod = user.role === "GOD";
+  const isPrivileged = isCoordinator(user.role);
+  const isMC = can(user.role, Permission.PARTY_CREATE);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pwDialogOpen, setPwDialogOpen] = useState(false);
 
   const navLinks = [
     { href: "/kalaams", label: "Kalaams" },
     { href: "/my-kalaams", label: "My Kalaams" },
     { href: "/sessions", label: "Sessions" },
-    ...(isPrivileged ? [{ href: "/admin/members", label: "Members" }] : []),
+    { href: "/majlis", label: "Majlis" },
+    { href: "/members", label: "Members" },
     ...(isGod ? [{ href: "/admin/users", label: "Users" }] : []),
   ];
 
-  const roleLabel = isGod ? "God" : isPrivileged ? "Admin" : "Member";
+  const roleLabel = ({ GOD: "God", MC: "MC", PC: "PC", PM: "Member", IM: "Member" } as Record<string, string>)[user.role] ?? user.role;
 
   return (
     <nav className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-50">
@@ -90,9 +95,32 @@ export function Navbar({ user }: NavbarProps) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
-                <Link href={`/reciters/${user.id}`} className="cursor-pointer">
+                <Link href={`/members/${user.id}`} className="cursor-pointer">
                   My Profile
                 </Link>
+              </DropdownMenuItem>
+              {isPrivileged && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/members" className="cursor-pointer">Admin: Members</Link>
+                  </DropdownMenuItem>
+                  {isMC && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/parties" className="cursor-pointer">Admin: Parties</Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/eval-requests" className="cursor-pointer">Admin: Eval Requests</Link>
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => setPwDialogOpen(true)}
+              >
+                Change Password
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -147,6 +175,8 @@ export function Navbar({ user }: NavbarProps) {
           ))}
         </div>
       )}
+
+      <ChangePasswordDialog open={pwDialogOpen} onOpenChange={setPwDialogOpen} />
     </nav>
   );
 }

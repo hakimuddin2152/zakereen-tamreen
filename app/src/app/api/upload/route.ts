@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getPresignedUploadUrl, validateAudioUpload, validatePdfUpload } from "@/lib/storage";
 import { uploadRequestSchema } from "@/lib/validations";
 import { randomUUID } from "crypto";
+import { isCoordinator } from "@/lib/permissions";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
   const role = session.user.role;
 
   // Members can only upload their own practice recordings
-  if (role !== "ADMIN" && role !== "GOD" && context !== "kalaamRecording") {
+  if (!isCoordinator(role) && context !== "kalaamRecording") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

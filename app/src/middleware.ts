@@ -2,16 +2,13 @@ import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isCoordinator } from "@/lib/permissions";
 
 const { auth } = NextAuth(authConfig);
 
 type AuthRequest = NextRequest & {
   auth: { user?: { role?: string; id?: string } } | null;
 };
-
-function isPrivileged(role?: string) {
-  return role === "ADMIN" || role === "GOD";
-}
 
 export default auth((req: AuthRequest) => {
   const { nextUrl } = req;
@@ -49,7 +46,7 @@ export default auth((req: AuthRequest) => {
   const isAdminPath =
     nextUrl.pathname.startsWith("/admin");
 
-  if (isAdminPath && !isPrivileged(role)) {
+  if (isAdminPath && !isCoordinator(role)) {
     return NextResponse.redirect(new URL("/kalaams", nextUrl));
   }
 

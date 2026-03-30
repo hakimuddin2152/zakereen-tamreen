@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateKalaamSchema } from "@/lib/validations";
+import { isCoordinator } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
   const role = session?.user?.role;
-  if (role !== "ADMIN" && role !== "GOD") {
+  if (!isCoordinator(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

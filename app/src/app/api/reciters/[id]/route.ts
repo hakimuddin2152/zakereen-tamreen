@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hash } from "bcryptjs";
 import { updateReciterSchema, resetPasswordSchema } from "@/lib/validations";
+import { isCoordinator } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,14 +15,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   // Members can only access their own profile
   const role = session.user.role;
-  if (role !== "ADMIN" && role !== "GOD" && session.user.id !== id) {
+  if (!isCoordinator(role) && session.user.id !== id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const user = await db.user.findUnique({
     where: { id },
     select: {
-      id: true, username: true, displayName: true, partyName: true, role: true,
+      id: true, username: true, displayName: true, party: { select: { name: true } }, role: true,
       grade: true, isActive: true, createdAt: true,
       evaluations: {
         orderBy: { session: { date: "desc" } },
@@ -42,7 +43,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "GOD") {
+  if (!isCoordinator(session?.user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -63,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const updated = await db.user.update({
     where: { id },
     data: parsed.data,
-    select: { id: true, username: true, displayName: true, partyName: true, role: true, grade: true, isActive: true },
+    select: { id: true, username: true, displayName: true, party: { select: { name: true } }, role: true, grade: true, isActive: true },
   });
 
   return NextResponse.json(updated);
