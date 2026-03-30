@@ -103,15 +103,15 @@ export function Navbar({ user }: NavbarProps) {
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/members" className="cursor-pointer">Admin: Members</Link>
+                    <Link href="/admin/members" className="cursor-pointer">Manage Members</Link>
                   </DropdownMenuItem>
                   {isMC && (
                     <DropdownMenuItem asChild>
-                      <Link href="/admin/parties" className="cursor-pointer">Admin: Parties</Link>
+                      <Link href="/admin/parties" className="cursor-pointer">Manage Parties</Link>
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/eval-requests" className="cursor-pointer">Admin: Eval Requests</Link>
+                    <Link href="/admin/eval-requests" className="cursor-pointer">Evaluation Requests</Link>
                   </DropdownMenuItem>
                 </>
               )}

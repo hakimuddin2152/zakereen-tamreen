@@ -7,7 +7,7 @@ import { formatDate } from "@/lib/utils-date";
 import { AddReciterDialog } from "@/components/reciters/add-reciter-dialog";
 import { ReciterActions } from "@/components/reciters/reciter-actions";
 
-import { isCoordinator } from "@/lib/permissions";
+import { can, isCoordinator, Permission } from "@/lib/permissions";
 
 const GRADE_COLORS: Record<string, string> = {
   A: "border-green-600 text-green-600",
@@ -21,8 +21,20 @@ export default async function MembersPage() {
   const role = session?.user?.role;
   if (!isCoordinator(role)) redirect("/kalaams");
 
+  const isMC = can(role ?? "", Permission.PARTY_CREATE);
+
+  // PC: find own party first so we can scope the member list
+  let partyFilter: { partyId: string } | undefined;
+  if (!isMC) {
+    const myParty = await db.party.findUnique({
+      where: { coordinatorId: session!.user!.id },
+      select: { id: true },
+    });
+    if (myParty) partyFilter = { partyId: myParty.id };
+  }
+
   const members = await db.user.findMany({
-    where: { role: { not: "GOD" } },
+    where: { role: { not: "GOD" }, ...partyFilter },
     orderBy: { displayName: "asc" },
     select: {
       id: true, username: true, displayName: true, party: { select: { name: true } },

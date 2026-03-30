@@ -3,17 +3,30 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hash } from "bcryptjs";
 import { resetPasswordSchema } from "@/lib/validations";
-import { isCoordinator } from "@/lib/permissions";
+import { can, isCoordinator, Permission } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (!isCoordinator(session?.user?.role)) {
+  const role = session?.user?.role ?? "";
+  if (!isCoordinator(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
+
+  // PC can only reset passwords for their own party members
+  if (!can(role, Permission.PARTY_CREATE)) {
+    const target = await db.user.findUnique({ where: { id }, select: { partyId: true } });
+    const myParty = await db.party.findUnique({
+      where: { coordinatorId: session!.user!.id },
+      select: { id: true },
+    });
+    if (!myParty || target?.partyId !== myParty.id) {
+      return NextResponse.json({ error: "Forbidden: not your party member" }, { status: 403 });
+    }
+  }
 
   let body: unknown;
   try {

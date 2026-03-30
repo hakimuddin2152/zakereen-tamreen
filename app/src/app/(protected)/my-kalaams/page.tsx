@@ -284,16 +284,18 @@ function KalaamCard({ entry, isCoordinator }: { entry: KalaamEntry; isCoordinato
             <PrereqBadge done={entry.hifzDone} label="Read Twice" />
           </div>
           <SessionList sessions={entry.sessions} />
-          <div className="mt-2">
-            <EvalRequestButton
-              kalaamId={entry.kalaamId}
-              lehenDone={entry.lehenDone}
-              hifzDone={entry.hifzDone}
-              hasRecording={entry.recordingCount > 0}
-              isCoordinator={isCoordinator}
-              isPending={entry.hasPendingEval}
-            />
-          </div>
+          {entry.status !== "Ready" && (
+            <div className="mt-2">
+              <EvalRequestButton
+                kalaamId={entry.kalaamId}
+                lehenDone={entry.lehenDone}
+                hifzDone={entry.hifzDone}
+                hasRecording={entry.recordingCount > 0}
+                isCoordinator={isCoordinator}
+                isPending={entry.hasPendingEval}
+              />
+            </div>
+          )}
         </div>
         <StarRating value={entry.latestRanking} />
       </div>

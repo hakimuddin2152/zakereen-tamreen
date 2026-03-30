@@ -3,9 +3,21 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hash } from "bcryptjs";
 import { updateReciterSchema, resetPasswordSchema } from "@/lib/validations";
-import { isCoordinator } from "@/lib/permissions";
+import { can, isCoordinator, Permission } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
+
+/** Returns the target user's partyId. Used for PC scope checks. */
+async function getTargetPartyId(id: string): Promise<string | null> {
+  const u = await db.user.findUnique({ where: { id }, select: { partyId: true } });
+  return u?.partyId ?? null;
+}
+
+/** Returns the PC's own party id. */
+async function getPCPartyId(coordinatorId: string): Promise<string | null> {
+  const p = await db.party.findUnique({ where: { coordinatorId }, select: { id: true } });
+  return p?.id ?? null;
+}
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const session = await auth();
@@ -43,11 +55,23 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
-  if (!isCoordinator(session?.user?.role)) {
+  const role = session?.user?.role ?? "";
+  if (!isCoordinator(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
+
+  // PC can only update members of their own party
+  if (!can(role, Permission.PARTY_CREATE)) {
+    const [targetPartyId, myPartyId] = await Promise.all([
+      getTargetPartyId(id),
+      getPCPartyId(session!.user!.id),
+    ]);
+    if (!myPartyId || targetPartyId !== myPartyId) {
+      return NextResponse.json({ error: "Forbidden: not your party member" }, { status: 403 });
+    }
+  }
 
   let body: unknown;
   try {
