@@ -106,7 +106,7 @@ export default async function KalaamDetailPage({ params }: Props) {
           )}
         </div>
 
-        <div className="flex items-center gap-4 mt-3 flex-wrap">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
           {(kalaam.highestNote || kalaam.lowestNote) && (
             <div className="text-sm text-muted-foreground">
               🎵 <span className="font-medium text-foreground">Vocal Range:</span>{" "}
@@ -123,7 +123,7 @@ export default async function KalaamDetailPage({ params }: Props) {
         </div>
 
         {kalaam.audioFileKey && (
-          <div className="mt-4">
+          <div className="mt-3 w-full">
             <p className="text-muted-foreground text-sm mb-1">Kalaam Audio</p>
             <AudioPlayer
               fileKey={kalaam.audioFileKey}

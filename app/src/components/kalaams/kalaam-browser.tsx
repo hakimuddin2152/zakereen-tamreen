@@ -172,8 +172,8 @@ export function KalaamBrowser({
                     }
 
                     return (
-                      <div key={k.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-accent/50 transition-colors">
-                        <Link href={`/kalaams/${k.id}`} className="flex-1 min-w-0 cursor-pointer">
+                      <div key={k.id} className="px-5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 hover:bg-accent/50 transition-colors">
+                        <Link href={`/kalaams/${k.id}`} className="min-w-0 cursor-pointer">
                           <p className="text-foreground font-medium">{k.title}</p>
                           {k.recitedBy && (
                             <p className="text-muted-foreground text-xs">
@@ -181,7 +181,7 @@ export function KalaamBrowser({
                             </p>
                           )}
                         </Link>
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-3 flex-wrap">
                           {k._count && k._count.sessionKalaams > 0 && (
                             <span className="text-muted-foreground text-xs">
                               {k._count.sessionKalaams} session

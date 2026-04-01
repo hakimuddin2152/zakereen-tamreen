@@ -49,7 +49,7 @@ export function AudioPlayer({ fileKey, fileName }: Props) {
     <div className="mt-1">
       {fileName && <p className="text-muted-foreground text-xs mb-1">{fileName}</p>}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <audio controls src={url} className="h-8 w-full max-w-xs" />
+      <audio controls src={url} className="w-full sm:max-w-xs" />
     </div>
   );
 }
