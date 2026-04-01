@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { AudioPlayer } from "@/components/evaluations/audio-player";
+import { PdfViewer } from "@/components/kalaams/pdf-viewer";
 
 interface Kalaam {
   id: string;
@@ -11,7 +13,9 @@ interface Kalaam {
   category: string;
   recitedBy?: string | null;
   audioFileKey?: string | null;
+  audioFileName?: string | null;
   pdfFileKey?: string | null;
+  pdfFileName?: string | null;
   pdfLink?: string | null;
   _count?: { sessionKalaams: number };
 }
@@ -168,36 +172,30 @@ export function KalaamBrowser({
                     }
 
                     return (
-                      <Link key={k.id} href={`/kalaams/${k.id}`}>
-                        <div className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-accent/50 transition-colors cursor-pointer">
-                          <div>
-                            <p className="text-foreground font-medium">{k.title}</p>
-                            {k.recitedBy && (
-                              <p className="text-muted-foreground text-xs">
-                                by {k.recitedBy}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {k._count && k._count.sessionKalaams > 0 && (
-                              <span className="text-muted-foreground text-xs">
-                                {k._count.sessionKalaams} session
-                                {k._count.sessionKalaams !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                            {k.audioFileKey && (
-                              <Badge variant="outline" className="text-xs">
-                                Audio
-                              </Badge>
-                            )}
-                            {(k.pdfFileKey || k.pdfLink) && (
-                              <Badge variant="outline" className="text-xs">
-                                PDF
-                              </Badge>
-                            )}
-                          </div>
+                      <div key={k.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-accent/50 transition-colors">
+                        <Link href={`/kalaams/${k.id}`} className="flex-1 min-w-0 cursor-pointer">
+                          <p className="text-foreground font-medium">{k.title}</p>
+                          {k.recitedBy && (
+                            <p className="text-muted-foreground text-xs">
+                              by {k.recitedBy}
+                            </p>
+                          )}
+                        </Link>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {k._count && k._count.sessionKalaams > 0 && (
+                            <span className="text-muted-foreground text-xs">
+                              {k._count.sessionKalaams} session
+                              {k._count.sessionKalaams !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {k.audioFileKey && (
+                            <AudioPlayer fileKey={k.audioFileKey} fileName={k.audioFileName ?? undefined} />
+                          )}
+                          {(k.pdfFileKey || k.pdfLink) && (
+                            <PdfViewer fileKey={k.pdfFileKey} fileName={k.pdfFileName} pdfLink={k.pdfLink} />
+                          )}
                         </div>
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>
