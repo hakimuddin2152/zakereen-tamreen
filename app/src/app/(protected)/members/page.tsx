@@ -11,8 +11,8 @@ const GRADE_COLORS: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  MC: "MC",
-  PC: "PC",
+  MC: "Mauze Coordinator",
+  PC: "Party Coordinator",
   PM: "Member",
   IM: "Individual",
 };

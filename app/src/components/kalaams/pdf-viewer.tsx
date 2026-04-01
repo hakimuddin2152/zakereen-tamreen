@@ -10,39 +10,31 @@ interface Props {
 }
 
 export function PdfViewer({ fileKey, fileName, pdfLink }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (!fileKey && !pdfLink) return null;
 
-  async function handleToggle() {
-    if (expanded) {
-      setExpanded(false);
-      return;
-    }
-
+  async function handleOpen() {
     if (iframeSrc) {
-      // Already loaded — just re-expand
-      setExpanded(true);
+      setOpen(true);
       return;
     }
 
     if (pdfLink && !fileKey) {
-      // External link — load directly
       setIframeSrc(pdfLink);
-      setExpanded(true);
+      setOpen(true);
       return;
     }
 
-    // S3 fileKey — fetch presigned URL
     setLoading(true);
     try {
       const res = await fetch(`/api/pdf/${fileKey}`);
       if (!res.ok) throw new Error("Failed to get PDF URL");
       const { url } = await res.json();
       setIframeSrc(url);
-      setExpanded(true);
+      setOpen(true);
     } catch {
       toast.error("Failed to load PDF");
     } finally {
@@ -51,43 +43,56 @@ export function PdfViewer({ fileKey, fileName, pdfLink }: Props) {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={loading}
-          className="text-sm text-primary hover:underline disabled:opacity-50"
-        >
-          {loading ? "Loading…" : expanded ? "📄 Hide PDF" : "📄 View PDF"}
-        </button>
-        {expanded && iframeSrc && (
-          <a
-            href={iframeSrc}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Open in new tab ↗
-          </a>
-        )}
-      </div>
+    <>
+      <button
+        type="button"
+        onClick={handleOpen}
+        disabled={loading}
+        className="text-sm text-primary hover:underline disabled:opacity-50"
+      >
+        {loading ? "Loading…" : "📄 View PDF"}
+      </button>
 
-      {expanded && iframeSrc && (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <div className="bg-muted/50 px-4 py-2 border-b border-border flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">
-              {fileName ?? "Kalaam PDF"}
-            </span>
+      {open && iframeSrc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
+        >
+          <div
+            className="bg-background rounded-xl overflow-hidden flex flex-col shadow-2xl"
+            style={{ width: "90vw", height: "90vh" }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <span className="text-sm font-medium text-foreground truncate">
+                {fileName ?? "Kalaam PDF"}
+              </span>
+              <div className="flex items-center gap-4 shrink-0">
+                <a
+                  href={iframeSrc}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Open in new tab ↗
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="text-sm font-semibold text-foreground bg-secondary hover:bg-accent px-3 py-1 rounded-md transition-colors"
+                >
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={iframeSrc}
+              className="flex-1 w-full"
+              title={fileName ?? "Kalaam PDF"}
+            />
           </div>
-          <iframe
-            src={iframeSrc}
-            className="w-full"
-            style={{ height: "75vh" }}
-            title={fileName ?? "Kalaam PDF"}
-          />
         </div>
       )}
-    </div>
+    </>
   );
 }
+

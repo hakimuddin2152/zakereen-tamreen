@@ -69,8 +69,8 @@ Previously `partyName` was a free-text string on User. It becomes a proper `Part
 
 **Majlis**
 9. MC creates a Majlis and curates the setlist (list of kalaams).
-10. MC assigns each kalaam to one or more parties ("Party A is responsible for Kalaam X").
-11. PC assigns specific members from their party to each kalaam assigned to them.
+10. MC assigns each kalaam directly to any user — Party Member, Individual Member, or even another PC/MC. The display groups assignees by their party.
+11. PC assigns specific members from their own party to kalaams (they cannot touch other parties or IMs).
 12. Everyone can view the Majlis programme (setlist + who recites what).
 
 **Recordings**
@@ -230,29 +230,32 @@ Previously `partyName` was a free-text string on User. It becomes a proper `Part
 
 ---
 
-#### Story M-1.2 — MC Curates Setlist + Assigns Kalaams to Parties
+#### Story M-1.2 — MC Curates Setlist + Assigns Reciters
 **As an** MC,  
-**I want** to add kalaams to a Majlis and assign each kalaam to responsible parties,  
-**so that** each party knows which kalaams they are responsible for.
+**I want** to add kalaams to a Majlis and assign reciters (any user — party member or individual),  
+**so that** the full programme is defined at once.
 
 **Acceptance Criteria:**
 - [ ] MC can add kalaams from the library (multi-select browser)
-- [ ] For each kalaam, MC can assign it to one or more parties ("Party A is responsible")
-- [ ] MC can remove a kalaam from the setlist (cascades party + member assignments)
-- [ ] The setlist shows: kalaam title, assigned party/parties, assigned members (once PC assigns)
+- [ ] For each kalaam, MC opens `assign-kalaam-dialog` showing all active members grouped by Party name, with an "Individuals" section for IMs
+- [ ] MC can select/deselect any member as a reciter for that kalaam
+- [ ] Members with `lehenDone && hifzDone` show a ✓ "Ready" badge
+- [ ] MC can remove a kalaam from the setlist (cascades all assignee records)
+- [ ] The setlist shows: kalaam title, assigned member names grouped by party
 
 ---
 
-#### Story M-1.3 — PC Assigns Members to Majlis Kalaams
+#### Story M-1.3 — PC Assigns Members to Kalaam
 **As a** PC,  
-**I want** to assign specific members from my party to each kalaam assigned to my party,  
-**so that** the individual performers are designated.
+**I want** to assign members from my party to a kalaam in a Majlis,  
+**so that** I designate who from my party will recite.
 
 **Acceptance Criteria:**
-- [ ] On Majlis detail page, each kalaam assigned to the PC's party shows an "Assign Members" button (PC only)
-- [ ] Opens a dialog showing PC's party members with "ready" badge (lehenDone + hifzDone)
+- [ ] On the Majlis detail page, PC sees an "Assign" button on each kalaam (they can assign for all kalaams, not just ones pre-designated to their party)
+- [ ] Opens `assign-kalaam-dialog` showing **only** the PC's own party members
+- [ ] "Ready" badge shown for members with prerequisites met
 - [ ] PC selects one or more members → saved
-- [ ] Shows assigned member names as pills under the kalaam row
+- [ ] PC cannot see or modify other parties' or IMs' assignments
 
 ---
 
@@ -359,6 +362,7 @@ Previously `partyName` was a free-text string on User. It becomes a proper `Part
 
 ```prisma
 enum Role {
+  GOD             // Developer / App Owner — above everyone; bypasses all permission checks
   MC              // Mauze Coordinator (multiple allowed; inherits PC + PM permissions)
   PC              // Party Coordinator  (always also a PM; coordinator of one party)
   PM              // Party Member       (has partyId set)
@@ -453,7 +457,7 @@ model KalaamEvalRequest {
 }
 ```
 
-#### New Majlis Models (two-level assignment)
+#### New Majlis Models (flat direct assignment)
 ```prisma
 model Majlis {
   id        String   @id @default(cuid())
@@ -470,40 +474,30 @@ model MajlisKalaam {
   id       String @id @default(cuid())
   majlisId String
   kalaamId String
-  // No ordering field — order is not important
 
-  majlis           Majlis             @relation(fields: [majlisId], references: [id], onDelete: Cascade)
-  kalaam           Kalaam             @relation(fields: [kalaamId], references: [id])
-  partyAssignments MajlisKalaamParty[]
+  majlis    Majlis              @relation(fields: [majlisId], references: [id], onDelete: Cascade)
+  kalaam    Kalaam              @relation(fields: [kalaamId], references: [id])
+  assignees MajlisKalaamMember[]
 
   @@unique([majlisId, kalaamId])
 }
 
-// MC assigns a kalaam to a party
-model MajlisKalaamParty {
+// Direct assignment: any user can be assigned to any kalaam in a Majlis.
+// Display groups by user.partyId → Party.name (or "Individual" if null).
+// MC: can assign any user. PC: can only assign their own party's members.
+model MajlisKalaamMember {
   id             String @id @default(cuid())
   majlisKalaamId String
-  partyId        String
+  userId         String
 
-  majlisKalaam      MajlisKalaam       @relation(fields: [majlisKalaamId], references: [id], onDelete: Cascade)
-  party             Party              @relation(fields: [partyId], references: [id])
-  memberAssignments MajlisKalaamMember[]
+  majlisKalaam MajlisKalaam @relation(fields: [majlisKalaamId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
 
-  @@unique([majlisKalaamId, partyId])
-}
-
-// PC assigns specific members within the party
-model MajlisKalaamMember {
-  id                  String @id @default(cuid())
-  majlisKalaamPartyId String
-  userId              String
-
-  majlisKalaamParty MajlisKalaamParty @relation(fields: [majlisKalaamPartyId], references: [id], onDelete: Cascade)
-  user              User              @relation(fields: [userId], references: [id])
-
-  @@unique([majlisKalaamPartyId, userId])
+  @@unique([majlisKalaamId, userId])
 }
 ```
+
+> ⚠️ `MajlisKalaamParty` is **not needed** — party grouping is derived at query time from `user.partyId`. This keeps the schema flat and avoids a two-step assignment workflow.
 
 **Additions to existing models:**
 ```prisma
@@ -514,7 +508,9 @@ model MajlisKalaamMember {
 // KalaamRecording
   shares KalaamRecordingShare[]
 
-// User — new back-relations already listed above
+// User
+  majlisAssignments MajlisKalaamMember[]  // kalaams user is assigned to recite
+  // other back-relations listed above
 ```
 
 ---
@@ -535,8 +531,8 @@ Session
 
 Majlis
   └── (M) MajlisKalaam → Kalaam
-        └── (M) MajlisKalaamParty → Party         [MC assigns]
-              └── (M) MajlisKalaamMember → User   [PC assigns]
+        └── (M) MajlisKalaamMember → User   [MC: any user; PC: own party only]
+              (display groups by User.partyId → Party.name or "Individual")
 
 KalaamRecording → User × Kalaam
   └── (M) KalaamRecordingShare → User (sharedWith)
@@ -564,8 +560,8 @@ KalaamEvalRequest → User × Kalaam
 | Set Grade (any member) | ✓ | — | — | — |
 | Set Grade (own party PM) | ✓ | ✓ | — | — |
 | Create Majlis + setlist | ✓ | — | — | — |
-| Assign Majlis kalaam → Party | ✓ | — | — | — |
-| Assign Majlis kalaam → Members | ✓ | own party | — | — |
+| Assign Majlis kalaam → any user (Party or IM) | ✓ | — | — | — |
+| Assign Majlis kalaam → own party members only | ✓ | ✓ | — | — |
 | View Majlis | ✓ | ✓ | ✓ | ✓ |
 | Upload practice recording | ✓ | ✓ | ✓ | ✓ |
 | View PM's recording | MC + PM's PC | own party's PM | own | — |
@@ -579,7 +575,174 @@ KalaamEvalRequest → User × Kalaam
 
 ---
 
-### 3.5 API Changes
+### 3.5 RBAC Architecture
+
+Instead of scattering `role === "PC"` checks across 30+ files, all permission logic lives in one place: **`lib/permissions.ts`**.
+
+#### Design
+
+```ts
+// lib/permissions.ts
+
+export const Permission = {
+  // Kalaams
+  KALAAM_VIEW:               "kalaam:view",
+  KALAAM_CREATE:             "kalaam:create",
+  KALAAM_EDIT:               "kalaam:edit",
+  KALAAM_DELETE:             "kalaam:delete",
+
+  // Parties
+  PARTY_VIEW:                "party:view",
+  PARTY_CREATE:              "party:create",
+  PARTY_EDIT:                "party:edit",
+  PARTY_DELETE:              "party:delete",
+  PARTY_ASSIGN_COORDINATOR:  "party:assign_coordinator",
+  PARTY_ASSIGN_ANY_MEMBER:   "party:assign_any_member",    // MC: move any IM into any party
+  PARTY_ASSIGN_OWN_MEMBER:   "party:assign_own_member",    // PC: add PM to own party
+
+  // Sessions
+  SESSION_CREATE_ANY:        "session:create_any",          // MC: any attendees
+  SESSION_CREATE_PARTY:      "session:create_party",        // PC: own party only
+  SESSION_VIEW_ALL:          "session:view_all",            // MC
+  SESSION_VIEW_PARTY:        "session:view_party",          // PC: sessions for their party
+  SESSION_VIEW_OWN:          "session:view_own",            // PM/IM: attended only
+
+  // Majlis
+  MAJLIS_VIEW:               "majlis:view",
+  MAJLIS_CREATE:             "majlis:create",               // MC
+  MAJLIS_EDIT:               "majlis:edit",
+  MAJLIS_DELETE:             "majlis:delete",
+  MAJLIS_ASSIGN_ANY:         "majlis:assign_any",           // MC: assign any user (PM, IM, PC, MC)
+  MAJLIS_ASSIGN_PARTY:       "majlis:assign_party",         // PC: assign own party members only
+
+  // Members & Grades
+  MEMBER_VIEW:               "member:view",
+  MEMBER_GRADE_SET_ANY:      "member:grade_set_any",        // MC
+  MEMBER_GRADE_SET_PARTY:    "member:grade_set_party",      // PC: own party only
+
+  // Evaluation Requests
+  EVAL_REQUEST_SUBMIT:       "eval_request:submit",         // PM / IM
+  EVAL_REQUEST_REVIEW_ANY:   "eval_request:review_any",     // MC
+  EVAL_REQUEST_REVIEW_PARTY: "eval_request:review_party",   // PC: own party
+
+  // Recordings
+  RECORDING_UPLOAD:          "recording:upload",
+  RECORDING_SHARE:           "recording:share",
+  RECORDING_VIEW_ANY:        "recording:view_any",          // MC
+
+  // Users
+  USER_CREATE:               "user:create",
+  USER_DEACTIVATE:           "user:deactivate",
+  USER_ROLE_CHANGE:          "user:role_change",            // GOD only
+  USER_PASSWORD_RESET:       "user:password_reset",
+  USER_PASSWORD_CHANGE_OWN:  "user:password_change_own",
+} as const;
+
+export type Permission = typeof Permission[keyof typeof Permission];
+
+// Base: every authenticated user
+const BASE: Permission[] = [
+  Permission.KALAAM_VIEW,
+  Permission.PARTY_VIEW,
+  Permission.MAJLIS_VIEW,
+  Permission.MEMBER_VIEW,
+  Permission.RECORDING_UPLOAD,
+  Permission.RECORDING_SHARE,
+  Permission.SESSION_VIEW_OWN,
+  Permission.USER_PASSWORD_CHANGE_OWN,
+  Permission.EVAL_REQUEST_SUBMIT,
+];
+
+const PC_EXTRA: Permission[] = [
+  Permission.KALAAM_CREATE,
+  Permission.KALAAM_EDIT,
+  Permission.SESSION_CREATE_PARTY,
+  Permission.SESSION_VIEW_PARTY,
+  Permission.PARTY_ASSIGN_OWN_MEMBER,
+  Permission.MEMBER_GRADE_SET_PARTY,
+  Permission.EVAL_REQUEST_REVIEW_PARTY,
+  Permission.MAJLIS_ASSIGN_PARTY,
+  Permission.USER_CREATE,
+  Permission.USER_DEACTIVATE,
+  Permission.USER_PASSWORD_RESET,
+];
+
+const MC_EXTRA: Permission[] = [
+  Permission.KALAAM_DELETE,
+  Permission.PARTY_CREATE,
+  Permission.PARTY_EDIT,
+  Permission.PARTY_DELETE,
+  Permission.PARTY_ASSIGN_COORDINATOR,
+  Permission.PARTY_ASSIGN_ANY_MEMBER,
+  Permission.SESSION_CREATE_ANY,
+  Permission.SESSION_VIEW_ALL,
+  Permission.MAJLIS_CREATE,
+  Permission.MAJLIS_EDIT,
+  Permission.MAJLIS_DELETE,
+  Permission.MAJLIS_ASSIGN_ANY,
+  Permission.MEMBER_GRADE_SET_ANY,
+  Permission.EVAL_REQUEST_REVIEW_ANY,
+  Permission.RECORDING_VIEW_ANY,
+  Permission.USER_ROLE_CHANGE,
+];
+
+export const ROLE_PERMISSIONS: Record<string, Set<Permission> | null> = {
+  IM:  new Set(BASE),
+  PM:  new Set(BASE),
+  PC:  new Set([...BASE, ...PC_EXTRA]),
+  MC:  new Set([...BASE, ...PC_EXTRA, ...MC_EXTRA]),
+  GOD: null, // GOD bypasses all checks
+};
+
+/** Check if a role has a permission. GOD always returns true. */
+export function can(role: string, permission: Permission): boolean {
+  if (role === "GOD") return true;
+  return ROLE_PERMISSIONS[role]?.has(permission) ?? false;
+}
+
+/** Use in API routes — throws a 403 Response if not allowed. */
+export function requirePermission(role: string | undefined, permission: Permission): void {
+  if (!role || !can(role, permission)) {
+    throw new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+```
+
+#### Usage Pattern
+
+**In API routes:**
+```ts
+import { requirePermission, Permission } from "@/lib/permissions";
+
+export async function POST(req: Request) {
+  const session = await auth();
+  requirePermission(session?.user?.role, Permission.PARTY_CREATE);
+  // ... handler
+}
+```
+
+**In server components:**
+```ts
+const canEdit = can(session.user.role, Permission.KALAAM_EDIT);
+```
+
+**In client components (role passed as prop from RSC):**
+```tsx
+{can(role, Permission.MAJLIS_CREATE) && <Button>New Majlis</Button>}
+```
+
+#### Benefits
+- **Single source of truth** — permission change in one file, propagates everywhere
+- **GOD bypass** — `can("GOD", anything)` always `true`; no special-casing in 30 files
+- **Testable** — `can(role, permission)` is a pure function, no server needed
+- **Type-safe** — `Permission` is a string union; typos are compile errors
+
+---
+
+### 3.6 API Changes
 
 #### New / Changed Routes
 
@@ -602,8 +765,7 @@ KalaamEvalRequest → User × Kalaam
 | PATCH | `/api/majlis/[id]` | MC | Update date/occasion/notes |
 | DELETE | `/api/majlis/[id]` | MC | Delete (cascades) |
 | PUT | `/api/majlis/[id]/kalaams` | MC | Replace setlist `{ kalaamIds }` |
-| PUT | `/api/majlis/[id]/kalaams/[kalaamId]/parties` | MC | Assign parties `{ partyIds }` |
-| PUT | `/api/majlis/[id]/kalaams/[kalaamId]/parties/[partyId]/members` | PC | Assign members `{ userIds }` |
+| PUT | `/api/majlis/[id]/kalaams/[kalaamId]/assignees` | MC, PC | Set assignees `{ userIds }` — MC: any users; PC: own party only |
 | GET | `/api/my-majlis` | PM, IM | Current user's Majlis appearances |
 | POST | `/api/kalaams/[id]/recordings/[recId]/share` | Self | Share recording `{ userIds }` |
 | DELETE | `/api/kalaams/[id]/recordings/[recId]/share/[userId]` | Self | Unshare |
@@ -685,10 +847,9 @@ components/
   majlis/
     majlis-card.tsx
     new-majlis-form.tsx
-    majlis-setlist.tsx              ← kalaam rows + party pills + member pills
+    majlis-setlist.tsx              ← kalaam rows + assignee pills grouped by party
     add-kalaams-dialog.tsx          ← reuse KalaamBrowser multi-select
-    assign-parties-dialog.tsx       ← MC assigns kalaam to parties
-    assign-members-dialog.tsx       ← PC assigns kalaam to members
+    assign-kalaam-dialog.tsx        ← MC: all users (grouped Party + Individuals); PC: own party only
     majlis-actions.tsx
   evaluations/
     eval-request-button.tsx         ← "Request Evaluation" on My Kalaams
@@ -703,22 +864,23 @@ components/
 
 Tasks ordered by dependency. Each group can start after the previous group is complete.
 
-### Group A — Foundation (Schema + Auth)
+### Group A — Foundation (Schema + Auth + RBAC)
 
 | # | Task | Files |
 |---|------|-------|
-| A1 | Role enum rename: `GOD→MC, ADMIN→PC, PARTY_MEMBER→PM`, add `IM` | `schema.prisma` |
+| A0 | **Create `lib/permissions.ts`** — full Permission enum + ROLE_PERMISSIONS map + `can()` + `requirePermission()` | `lib/permissions.ts` (new) |
+| A1 | Role enum: keep `GOD`, add `MC`, rename `ADMIN→PC`, `PARTY_MEMBER→PM`, add `IM` | `schema.prisma` |
 | A2 | Add `Party` model | `schema.prisma` |
 | A3 | Add `partyId` FK on `User`, remove `partyName`, add coordinator back-relation | `schema.prisma` |
 | A4 | Add `createdById`, `partyId` on `Session` | `schema.prisma` |
 | A5 | Add `KalaamRecordingShare` model | `schema.prisma` |
 | A6 | Add `KalaamEvalRequest` + `EvalRequestStatus` enum | `schema.prisma` |
-| A7 | Add Majlis models: `Majlis`, `MajlisKalaam`, `MajlisKalaamParty`, `MajlisKalaamMember` | `schema.prisma` |
+| A7 | Add Majlis models: `Majlis`, `MajlisKalaam`, `MajlisKalaamMember` (flat, no party join table) | `schema.prisma` |
 | A8 | DB push + Prisma regenerate | CLI |
 | A9 | `prisma db push --force-reset` + update `seed.ts` with MC/PC/PM/IM Party data | CLI + `prisma/seed.ts` |
 | A10 | Update `auth.ts` / `next-auth.d.ts` — add `partyId` to session token | `lib/auth.ts`, `types/next-auth.d.ts` |
 | A11 | Update role guards in `middleware.ts` (MC/PC/PM/IM) | `middleware.ts` |
-| A12 | Update all `role === "ADMIN"` / `role === "GOD"` checks throughout codebase → MC/PC | all files |
+| A12 | Replace all raw `role === "ADMIN"` / `role === "GOD"` checks throughout codebase with `can(role, Permission.X)` calls | all files |
 
 ### Group B — Core APIs
 
@@ -740,8 +902,7 @@ Tasks ordered by dependency. Each group can start after the previous group is co
 | B14 | `GET/POST /api/majlis` | new |
 | B15 | `GET/PATCH/DELETE /api/majlis/[id]` | new |
 | B16 | `PUT /api/majlis/[id]/kalaams` | new |
-| B17 | `PUT /api/majlis/[id]/kalaams/[kalaamId]/parties` | new |
-| B18 | `PUT /api/majlis/[id]/kalaams/[kalaamId]/parties/[partyId]/members` | new |
+| B17 | `PUT /api/majlis/[id]/kalaams/[kalaamId]/assignees` — MC: any user; PC: scope to own party | new |
 
 ### Group C — Components
 
@@ -755,11 +916,10 @@ Tasks ordered by dependency. Each group can start after the previous group is co
 | C6 | `share-recording-dialog.tsx` — member picker for sharing recordings | new |
 | C7 | `new-majlis-form.tsx` (date + occasion + notes) | new |
 | C8 | `add-kalaams-dialog.tsx` for Majlis (reuse KalaamBrowser) | new |
-| C9 | `assign-parties-dialog.tsx` — MC assigns kalaam to party/parties | new |
-| C10 | `assign-members-dialog.tsx` — PC assigns kalaam to members (ready highlight) | new |
-| C11 | `majlis-setlist.tsx` — kalaam rows with party/member pills + admin controls | new |
-| C12 | `majlis-actions.tsx` (edit + delete) | new |
-| C13 | `change-password-dialog.tsx` — triggered from profile dropdown | new |
+| C9 | `assign-kalaam-dialog.tsx` — MC: all users grouped (Party sections + Individuals); PC: own party members only; both show "Ready" badge | new |
+| C10 | `majlis-setlist.tsx` — kalaam rows with assignee pills grouped by party + admin controls | new |
+| C11 | `majlis-actions.tsx` (edit + delete) | new |
+| C12 | `change-password-dialog.tsx` — triggered from profile dropdown | new |
 
 ### Group D — Pages
 
@@ -788,5 +948,6 @@ Tasks ordered by dependency. Each group can start after the previous group is co
 | Q4 | How to handle existing sessions with no creator? | **Not applicable — clean slate** | DB will be wiped and reseeded. No migration script needed. |
 | Q5 | Should `/reciters/[id]` redirect to `/members/[id]`? | **Rename only** — just refactor the route in code | Change `/reciters` → `/members` throughout. No Next.js redirect needed (private app, no external links). |
 | Q6 | Can a PC see IM recordings? | **Only if IM explicitly shares with them** | `KalaamRecordingShare` already handles this. Default visibility for IM recordings: IM + MC only. PC sees only if in share list. |
-| Q7 | Is Majlis kalaam ordering manual? | **No ordering needed** | Remove `order` field from `MajlisKalaam`. Kalaams display in insertion order (or alphabetically). |
-| Q8 | Can PM/IM submit multiple eval requests for the same kalaam? | **Multiple OK** — PM/IM can request evaluation for any kalaam they have a recording for | No uniqueness constraint on `KalaamEvalRequest(userId, kalaamId)`. Multiple requests allowed (e.g. request again after improvement). |
+| Q7 | Is Majlis kalaam ordering manual? | **No ordering needed** | Remove `order` field from `MajlisKalaam`. Kalaams display in insertion/creation order. |
+| Q8 | Can PM/IM submit multiple eval requests for the same kalaam? | **Multiple OK** | No uniqueness constraint on `KalaamEvalRequest(userId, kalaamId)`. PM/IM can request again after improvement. |
+| Q9 | Is GOD role kept? | **Yes** — GOD is developer/app owner; stays as top role above MC | GOD role retained in enum unchanged. `can("GOD", anything)` always returns `true`. |

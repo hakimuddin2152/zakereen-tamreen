@@ -5,7 +5,9 @@ import { hash } from "bcryptjs";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL!,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+  ssl: process.env.DATABASE_URL?.includes("supabase") || process.env.DATABASE_URL?.includes("sslmode")
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 const adapter = new PrismaPg(pool);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -49,8 +49,14 @@ export async function POST(req: NextRequest) {
     fileKey = `sessions/${sessionId}/${userId}/${randomUUID()}.${ext}`;
   } else if (context === "kalaamRecording" && kalaamId) {
     fileKey = `recordings/${kalaamId}/${currentUserId}/${randomUUID()}.${ext}`;
-  } else if (context === "kalaamPdf" && kalaamId) {
-    fileKey = `pdf/${kalaamId}/${randomUUID()}.pdf`;
+  } else if (context === "kalaamPdf") {
+    fileKey = kalaamId
+      ? `pdf/${kalaamId}/${randomUUID()}.pdf`
+      : `pdf/pending/${randomUUID()}.pdf`;
+  } else if (context === "kalaamAudio") {
+    fileKey = kalaamId
+      ? `audio/${kalaamId}/${randomUUID()}.${ext}`
+      : `audio/pending/${randomUUID()}.${ext}`;
   } else {
     return NextResponse.json({ error: "Invalid upload context" }, { status: 400 });
   }
@@ -58,3 +64,4 @@ export async function POST(req: NextRequest) {
   const uploadUrl = await getPresignedUploadUrl(fileKey, contentType);
   return NextResponse.json({ uploadUrl, fileKey });
 }
+

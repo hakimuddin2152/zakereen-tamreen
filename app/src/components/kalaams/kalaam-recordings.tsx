@@ -24,22 +24,27 @@ function formatDate(d: string | Date) {
   });
 }
 
+function formatTime(s: number) {
+  const m = Math.floor(s / 60).toString().padStart(2, "0");
+  const sec = (s % 60).toString().padStart(2, "0");
+  return `${m}:${sec}`;
+}
+
 export function KalaamRecordings({ kalaamId, initialRecordings }: Props) {
   const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = ""; // allow re-selecting same file
-
+  async function uploadFile(file: File) {
     setUploading(true);
     setUploadProgress(0);
-
     try {
-      // 1. Get presigned upload URL
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,7 +61,6 @@ export function KalaamRecordings({ kalaamId, initialRecordings }: Props) {
       }
       const { uploadUrl, fileKey } = await res.json();
 
-      // 2. Upload to S3
       const xhr = new XMLHttpRequest();
       await new Promise<void>((resolve, reject) => {
         xhr.upload.addEventListener("progress", (ev) => {
@@ -72,7 +76,6 @@ export function KalaamRecordings({ kalaamId, initialRecordings }: Props) {
         xhr.send(file);
       });
 
-      // 3. Save recording to DB
       const saveRes = await fetch(`/api/kalaams/${kalaamId}/recordings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -80,15 +83,50 @@ export function KalaamRecordings({ kalaamId, initialRecordings }: Props) {
       });
       if (!saveRes.ok) throw new Error("Failed to save recording");
       const saved: Recording = await saveRes.json();
-
-      // Keep only last 3 in UI (server already trims DB)
       setRecordings((prev) => [saved, ...prev].slice(0, 3));
-      toast.success("Recording uploaded");
+      toast.success("Recording saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    await uploadFile(file);
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const file = new File([blob], `live-recording-${Date.now()}.webm`, { type: "audio/webm" });
+        await uploadFile(file);
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
+    } catch {
+      toast.error("Microphone access denied");
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    if (timerRef.current) clearInterval(timerRef.current);
+    setIsRecording(false);
   }
 
   async function handleDelete(recordingId: string) {
@@ -109,7 +147,7 @@ export function KalaamRecordings({ kalaamId, initialRecordings }: Props) {
     <div>
       <div className="px-5 py-4 space-y-3">
         {recordings.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No recordings yet. Upload your practice audio below.</p>
+          <p className="text-muted-foreground text-sm">No recordings yet. Record live or upload a file below.</p>
         ) : (
           recordings.map((r, i) => (
             <div key={r.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 space-y-1">
@@ -131,19 +169,46 @@ export function KalaamRecordings({ kalaamId, initialRecordings }: Props) {
         )}
       </div>
 
-      <div className="px-5 pb-4 flex items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-        >
-          {uploading ? `Uploading ${uploadProgress}%…` : "Upload Recording"}
-        </Button>
-        <span className="text-muted-foreground text-xs">
-          mp3, wav, m4a · max 50 MB · last 3 kept
-        </span>
+      <div className="px-5 pb-4 flex items-center gap-3 flex-wrap">
+        {isRecording ? (
+          <>
+            <span className="text-sm text-destructive font-medium animate-pulse">
+              ● {formatTime(recordingTime)}
+            </span>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={stopRecording}
+            >
+              Stop Recording
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={startRecording}
+              disabled={uploading}
+            >
+              🎙 Record Live
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? `Uploading ${uploadProgress}%…` : "Upload File"}
+            </Button>
+            <span className="text-muted-foreground text-xs">
+              mp3, wav, m4a · max 50 MB · last 3 kept
+            </span>
+          </>
+        )}
         <Input
           ref={fileRef}
           type="file"

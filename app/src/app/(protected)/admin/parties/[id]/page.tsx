@@ -52,7 +52,7 @@ export default async function PartyDetailPage({ params }: Props) {
       })
     : [];
 
-  const ROLE_LABELS: Record<string, string> = { MC: "MC", PC: "PC", PM: "Member", IM: "Individual" };
+  const ROLE_LABELS: Record<string, string> = { MC: "Mauze Coordinator", PC: "Party Coordinator", PM: "Member", IM: "Individual" };
   const GRADE_COLORS: Record<string, string> = {
     A: "border-green-600 text-green-600",
     B: "border-blue-500 text-blue-500",

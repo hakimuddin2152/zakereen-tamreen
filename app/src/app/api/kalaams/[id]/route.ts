@@ -51,7 +51,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { pdfLink, pdfFileKey, pdfFileName, ...rest } = parsed.data;
+  const { pdfLink, pdfFileKey, pdfFileName, audioFileKey, audioFileName, ...rest } = parsed.data;
   const updated = await db.kalaam.update({
     where: { id },
     data: {
@@ -59,6 +59,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...(pdfLink !== undefined ? { pdfLink: pdfLink || null } : {}),
       ...(pdfFileKey !== undefined ? { pdfFileKey: pdfFileKey ?? null } : {}),
       ...(pdfFileName !== undefined ? { pdfFileName: pdfFileName ?? null } : {}),
+      ...(audioFileKey !== undefined ? { audioFileKey: audioFileKey ?? null } : {}),
+      ...(audioFileName !== undefined ? { audioFileName: audioFileName ?? null } : {}),
     },
   });
   return NextResponse.json(updated);

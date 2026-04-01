@@ -38,7 +38,7 @@ export function Navbar({ user }: NavbarProps) {
     ...(isGod ? [{ href: "/admin/users", label: "Users" }] : []),
   ];
 
-  const roleLabel = ({ GOD: "God", MC: "MC", PC: "PC", PM: "Member", IM: "Member" } as Record<string, string>)[user.role] ?? user.role;
+  const roleLabel = ({ GOD: "God", MC: "Mauze Coordinator", PC: "Party Coordinator", PM: "Member", IM: "Member" } as Record<string, string>)[user.role] ?? user.role;
 
   return (
     <nav className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-50">

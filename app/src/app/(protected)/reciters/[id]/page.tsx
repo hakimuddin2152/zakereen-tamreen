@@ -66,7 +66,7 @@ export default async function ReciterProfilePage({ params }: Props) {
               {reciter.isActive ? "Active" : "Inactive"}
             </Badge>
             {reciter.role !== "PM" && reciter.role !== "IM" && (
-              <Badge variant="outline">{{ GOD: "God", MC: "MC", PC: "PC" }[reciter.role] ?? reciter.role}</Badge>
+              <Badge variant="outline">{{ GOD: "God", MC: "Mauze Coordinator", PC: "Party Coordinator" }[reciter.role] ?? reciter.role}</Badge>
             )}
           </div>
           {isAdmin && (

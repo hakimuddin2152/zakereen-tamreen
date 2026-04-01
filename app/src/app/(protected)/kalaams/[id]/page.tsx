@@ -11,7 +11,7 @@ import { EditKalaamDialog } from "@/components/admin/edit-kalaam-dialog";
 import { AdminPrerequisiteTable } from "@/components/admin/admin-prerequisite-table";
 import { KalaamRecordings } from "@/components/kalaams/kalaam-recordings";
 import { PdfViewer } from "@/components/kalaams/pdf-viewer";
-import { isCoordinator } from "@/lib/permissions";
+import { isCoordinator, can, Permission } from "@/lib/permissions";
 import { EvalRequestButton } from "@/components/evaluations/eval-request-button";
 
 interface Props {
@@ -29,7 +29,8 @@ export default async function KalaamDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await auth();
   const userId = session!.user!.id;
-  const isPrivileged = session?.user?.role === "ADMIN" || session?.user?.role === "GOD";
+  const role = session?.user?.role ?? "";
+  const isPrivileged = can(role, Permission.KALAAM_EDIT);
 
   const [kalaam, prereq, adminData, myRecordings, pendingEval] = await Promise.all([
     db.kalaam.findUnique({
@@ -78,7 +79,6 @@ export default async function KalaamDetailPage({ params }: Props) {
   const sessions = kalaam.sessionKalaams.map((sk) => sk.session);
   const allMembers = adminData?.[0] ?? [];
   const allPrereqs = adminData?.[1] ?? [];
-  const role = session?.user?.role ?? "";
   const userIsCoordinator = isCoordinator(role);
 
   return (

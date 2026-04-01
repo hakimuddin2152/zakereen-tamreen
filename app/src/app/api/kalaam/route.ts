@@ -38,9 +38,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { pdfLink, ...rest } = parsed.data;
+  const { pdfLink, pdfFileKey, pdfFileName, audioFileKey, audioFileName, ...rest } = parsed.data;
   const kalaam = await db.kalaam.create({
-    data: { ...rest, pdfLink: pdfLink || null },
+    data: {
+      ...rest,
+      pdfLink: pdfLink || null,
+      pdfFileKey: pdfFileKey ?? null,
+      pdfFileName: pdfFileName ?? null,
+      audioFileKey: audioFileKey ?? null,
+      audioFileName: audioFileName ?? null,
+    },
   });
   return NextResponse.json(kalaam, { status: 201 });
 }

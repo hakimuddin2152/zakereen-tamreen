@@ -53,7 +53,7 @@ export default async function MemberProfilePage({ params }: Props) {
     ? member.evaluations.reduce((s: number, e: { ranking: number | null }) => s + (e.ranking ?? 0), 0) / totalRated
     : null;
 
-  const ROLE_LABELS: Record<string, string> = { GOD: "God", MC: "MC", PC: "PC", PM: "Member", IM: "Individual" };
+  const ROLE_LABELS: Record<string, string> = { GOD: "God", MC: "Mauze Coordinator", PC: "Party Coordinator", PM: "Member", IM: "Individual" };
 
   return (
     <div>

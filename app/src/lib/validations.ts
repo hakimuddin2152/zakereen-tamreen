@@ -53,6 +53,10 @@ export const createKalaamSchema = z.object({
   category: z.enum(["MARASIYA", "SALAAM", "MADEH", "MISC"]).default("MISC"),
   recitedBy: z.string().max(200).optional(),
   pdfLink: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  pdfFileKey: z.string().max(500).nullable().optional(),
+  pdfFileName: z.string().max(200).nullable().optional(),
+  audioFileKey: z.string().max(500).nullable().optional(),
+  audioFileName: z.string().max(200).nullable().optional(),
   highestNote: z.string().max(10).optional(),
   lowestNote: z.string().max(10).optional(),
 });
@@ -60,6 +64,8 @@ export const createKalaamSchema = z.object({
 export const updateKalaamSchema = createKalaamSchema.partial().extend({
   pdfFileKey: z.string().max(500).nullable().optional(),
   pdfFileName: z.string().max(200).nullable().optional(),
+  audioFileKey: z.string().max(500).nullable().optional(),
+  audioFileName: z.string().max(200).nullable().optional(),
 });
 
 export const saveRecordingSchema = z.object({
@@ -76,7 +82,7 @@ export const updatePrerequisiteSchema = z.object({
 export const uploadRequestSchema = z.object({
   contentType: z.string(),
   contentLength: z.number().int().positive(),
-  context: z.enum(["session", "kalaam", "kalaamRecording", "kalaamPdf"]),
+  context: z.enum(["session", "kalaam", "kalaamRecording", "kalaamPdf", "kalaamAudio"]),
   sessionId: z.string().cuid().optional(),
   userId: z.string().cuid().optional(),
   kalaamId: z.string().cuid().optional(),
