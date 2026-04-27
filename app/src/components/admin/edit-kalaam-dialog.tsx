@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 
 const CATEGORIES = [
+  { value: "MATEMI", label: "Matemi" },
   { value: "MARASIYA", label: "Marasiya" },
   { value: "SALAAM", label: "Salaam" },
   { value: "MADEH", label: "Madeh" },

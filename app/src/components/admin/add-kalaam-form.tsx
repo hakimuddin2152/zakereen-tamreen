@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 
 const CATEGORIES = [
+  { value: "MATEMI", label: "Matemi" },
   { value: "MARASIYA", label: "Marasiya" },
   { value: "SALAAM", label: "Salaam" },
   { value: "MADEH", label: "Madeh" },
@@ -25,7 +26,7 @@ export function AddKalaamForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("MARASIYA");
+  const [category, setCategory] = useState("MATEMI");
   const [recitedBy, setRecitedBy] = useState("");
   const [pdfLink, setPdfLink] = useState("");
   const [pdfFileKey, setPdfFileKey] = useState<string | null>(null);

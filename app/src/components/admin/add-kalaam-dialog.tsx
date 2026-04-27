@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 
 const CATEGORIES = [
+  { value: "MATEMI", label: "Matemi" },
   { value: "MARASIYA", label: "Marasiya" },
   { value: "SALAAM", label: "Salaam" },
   { value: "MADEH", label: "Madeh" },
@@ -33,7 +34,7 @@ export function AddKalaamDialog() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<string>("MARASIYA");
+  const [category, setCategory] = useState<string>("MATEMI");
   const [recitedBy, setRecitedBy] = useState("");
   const [pdfLink, setPdfLink] = useState("");
   const [pdfFileKey, setPdfFileKey] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export function AddKalaamDialog() {
 
   function reset() {
     setTitle("");
-    setCategory("MARASIYA");
+    setCategory("MATEMI");
     setRecitedBy("");
     setPdfLink("");
     setPdfFileKey(null);

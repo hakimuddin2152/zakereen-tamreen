@@ -19,6 +19,8 @@ enum Role {
 
 enum KalaamCategory {
   MARASIYA
+  MATAMI
+  MATEMI
   SALAAM
   MADEH
   MISC

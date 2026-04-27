@@ -50,7 +50,7 @@ export const upsertEvaluationSchema = z.object({
 
 export const createKalaamSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
-  category: z.enum(["MARASIYA", "SALAAM", "MADEH", "MISC"]).default("MISC"),
+  category: z.enum(["MARASIYA", "MATEMI", "SALAAM", "MADEH", "MISC"]).default("MISC"),
   recitedBy: z.string().max(200).optional(),
   pdfLink: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   pdfFileKey: z.string().max(500).nullable().optional(),

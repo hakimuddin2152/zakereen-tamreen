@@ -31,12 +31,13 @@ interface Props {
 
 const CATEGORY_LABELS: Record<string, string> = {
   MARASIYA: "Marasiya",
+  MATEMI: "Matemi",
   SALAAM: "Salaam",
   MADEH: "Madeh",
   MISC: "Misc",
 };
 
-const CATEGORY_ORDER = ["MARASIYA", "SALAAM", "MADEH", "MISC"] as const;
+const CATEGORY_ORDER = ["MATEMI", "MARASIYA", "SALAAM", "MADEH", "MISC"] as const;
 
 export function KalaamBrowser({
   kalaams,

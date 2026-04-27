@@ -20,6 +20,7 @@ interface Props {
 
 const CATEGORY_LABELS: Record<string, string> = {
   MARASIYA: "Marasiya",
+  MATEMI: "Matemi",
   SALAAM: "Salaam",
   MADEH: "Madeh",
   MISC: "Misc",
