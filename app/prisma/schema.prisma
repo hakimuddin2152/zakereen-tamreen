@@ -79,6 +79,7 @@ model User {
   evalRequestsDone KalaamEvalRequest[] @relation("EvalsDone")
   majlisAssignments MajlisKalaamMember[]
   sessionsCreated  Session[]           @relation("SessionsCreated")
+  feedbacksGiven   RecordingFeedback[] @relation("FeedbackGiven")
 }
 
 // ── Kalaam ─────────────────────────────────────────────────────────────────
@@ -191,9 +192,25 @@ model KalaamRecording {
   fileName  String
   createdAt DateTime @default(now())
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  kalaam Kalaam @relation(fields: [kalaamId], references: [id], onDelete: Cascade)
-  shares KalaamRecordingShare[]
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kalaam    Kalaam              @relation(fields: [kalaamId], references: [id], onDelete: Cascade)
+  shares    KalaamRecordingShare[]
+  feedbacks RecordingFeedback[]
+}
+
+model RecordingFeedback {
+  id          String   @id @default(cuid())
+  recordingId String
+  authorId    String
+  comment     String?
+  ranking     Int?     // 1–5 stars (optional)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  recording KalaamRecording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  author    User            @relation("FeedbackGiven", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([recordingId, authorId])
 }
 
 model KalaamRecordingShare {

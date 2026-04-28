@@ -5,17 +5,35 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AudioPlayer } from "@/components/evaluations/audio-player";
+import { RecordingFeedbackPanel } from "@/components/recordings/recording-feedback-panel";
+
+interface FeedbackAuthor {
+  id: string;
+  displayName: string;
+  role: string;
+}
+
+interface Feedback {
+  id: string;
+  authorId: string;
+  comment: string | null;
+  ranking: number | null;
+  createdAt: string | Date;
+  author: FeedbackAuthor;
+}
 
 interface Recording {
   id: string;
   fileKey: string;
   fileName: string;
   createdAt: string | Date;
+  feedbacks?: Feedback[];
 }
 
 interface Props {
   kalaamId: string;
   initialRecordings: Recording[];
+  isCoordinator?: boolean;
 }
 
 function formatDate(d: string | Date) {
@@ -30,7 +48,7 @@ function formatTime(s: number) {
   return `${m}:${sec}`;
 }
 
-export function KalaamRecordings({ kalaamId, initialRecordings }: Props) {
+export function KalaamRecordings({ kalaamId, initialRecordings, isCoordinator = false }: Props) {
   const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -164,6 +182,12 @@ export function KalaamRecordings({ kalaamId, initialRecordings }: Props) {
                 </button>
               </div>
               <AudioPlayer fileKey={r.fileKey} fileName={r.fileName} />
+              <RecordingFeedbackPanel
+                kalaamId={kalaamId}
+                recordingId={r.id}
+                isCoordinator={isCoordinator}
+                initialFeedbacks={r.feedbacks ?? []}
+              />
             </div>
           ))
         )}

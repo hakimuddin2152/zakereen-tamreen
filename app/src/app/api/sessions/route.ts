@@ -77,27 +77,6 @@ export async function POST(req: NextRequest) {
     sessionPartyId = myParty?.id ?? null;
   }
 
-  // Check prerequisites
-  const missingPrereqs: string[] = [];
-  for (const userId of attendeeIds) {
-    for (const kalaamId of kalaamIds) {
-      const prereq = await db.kalaamPrerequisite.findUnique({
-        where: { userId_kalaamId: { userId, kalaamId } },
-        select: { lehenDone: true, hifzDone: true },
-      });
-      if (!prereq || !prereq.lehenDone || !prereq.hifzDone) {
-        const user = await db.user.findUnique({ where: { id: userId }, select: { displayName: true } });
-        const kalaam = await db.kalaam.findUnique({ where: { id: kalaamId }, select: { title: true } });
-        missingPrereqs.push(
-          `${user?.displayName ?? userId} has not completed prerequisites for "${kalaam?.title ?? kalaamId}"`
-        );
-      }
-    }
-  }
-  if (missingPrereqs.length > 0) {
-    return NextResponse.json({ error: "Prerequisites not met", details: missingPrereqs }, { status: 422 });
-  }
-
   const newSession = await db.session.create({
     data: {
       date: new Date(date),

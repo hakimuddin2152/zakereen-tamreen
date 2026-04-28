@@ -68,6 +68,12 @@ export default async function KalaamDetailPage({ params }: Props) {
       where: { userId, kalaamId: id },
       orderBy: { createdAt: "desc" },
       take: 3,
+      include: {
+        feedbacks: {
+          orderBy: { createdAt: "asc" },
+          include: { author: { select: { id: true, displayName: true, role: true } } },
+        },
+      },
     }),
     db.kalaamEvalRequest.findFirst({
       where: { userId, kalaamId: id, status: "PENDING" },
@@ -176,7 +182,7 @@ export default async function KalaamDetailPage({ params }: Props) {
             Upload your practice audio — last 3 are kept
           </p>
         </div>
-        <KalaamRecordings kalaamId={id} initialRecordings={myRecordings} />
+        <KalaamRecordings kalaamId={id} initialRecordings={myRecordings} isCoordinator={userIsCoordinator} />
       </div>
 
       {/* Sessions */}
