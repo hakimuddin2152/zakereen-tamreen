@@ -108,7 +108,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (!existing || existing.recordingId !== recordingId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (existing.authorId !== authorId) {
+  // Author can always delete; coordinators can delete any feedback
+  if (existing.authorId !== authorId && !isCoordinator(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

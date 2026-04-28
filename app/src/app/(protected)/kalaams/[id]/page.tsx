@@ -77,8 +77,9 @@ export default async function KalaamDetailPage({ params }: Props) {
       },
     }),
     db.kalaamEvalRequest.findFirst({
-      where: { userId, kalaamId: id, status: "PENDING" },
-      select: { id: true },
+      where: { userId, kalaamId: id, status: { in: ["PENDING", "EVALUATED"] } },
+      select: { id: true, status: true },
+      orderBy: { requestedAt: "desc" },
     }),
     // Coordinators: fetch all other members' recordings for this kalaam
     isCoordinator(role)
@@ -239,15 +240,20 @@ export default async function KalaamDetailPage({ params }: Props) {
             initialValue={prereq?.hifzDone ?? false}
           />
         </div>
-        <div className="px-5 pb-4">
+        <div className="px-5 pb-4 flex items-center gap-3 flex-wrap">
           <EvalRequestButton
             kalaamId={id}
             lehenDone={prereq?.lehenDone ?? false}
             hifzDone={prereq?.hifzDone ?? false}
             hasRecording={myRecordings.length > 0}
             isCoordinator={userIsCoordinator}
-            isPending={pendingEval !== null}
+            isPending={pendingEval?.status === "PENDING"}
           />
+          {pendingEval?.status === "EVALUATED" && !myStandaloneEval && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 border border-green-500/30 px-3 py-1 text-xs font-medium text-green-600">
+              ✓ Evaluated
+            </span>
+          )}
         </div>
         {myStandaloneEval && (
           <div className="px-5 pb-4">

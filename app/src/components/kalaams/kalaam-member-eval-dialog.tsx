@@ -75,16 +75,17 @@ export function KalaamMemberEvalDialog({ kalaamId, memberId, memberName, existin
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.error || "Failed to save evaluation");
+        let msg = "Failed to save evaluation";
+        try { const err = await res.json(); msg = err.error || msg; } catch {}
+        toast.error(msg);
         return;
       }
       const saved: Evaluation = await res.json();
       setLocalEval(saved);
       toast.success("Evaluation saved");
       setOpen(false);
-    } catch {
-      toast.error("Error saving evaluation");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error saving evaluation");
     } finally {
       setSaving(false);
     }

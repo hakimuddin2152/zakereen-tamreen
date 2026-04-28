@@ -39,35 +39,55 @@ export async function POST(req: NextRequest, { params }: Params) {
   const kalaam = await db.kalaam.findUnique({ where: { id: kalaamId }, select: { id: true } });
   if (!kalaam) return NextResponse.json({ error: "Kalaam not found" }, { status: 404 });
 
-  // PC: can only evaluate members in their own party
-  if (session.user.role === "PC") {
-    const myParty = await db.party.findUnique({
-      where: { coordinatorId: session.user.id },
-      select: { id: true },
+  // Verify the target user exists
+  const member = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
+
+  try {
+    // Upsert: delete existing standalone eval for this userId+kalaamId, then create
+    await db.reciterEvaluation.deleteMany({
+      where: { sessionId: { equals: null }, userId, kalaamId },
     });
-    const member = await db.user.findUnique({ where: { id: userId }, select: { partyId: true } });
-    if (!myParty || member?.partyId !== myParty.id) {
-      return NextResponse.json({ error: "Forbidden: not your party member" }, { status: 403 });
-    }
+
+    const evaluation = await db.reciterEvaluation.create({
+      data: {
+        sessionId: null,
+        userId,
+        kalaamId,
+        ranking: ranking ?? null,
+        voiceRange: voiceRange ?? null,
+        notes: notes ?? null,
+      },
+    });
+
+    // If a PENDING eval request exists for this member+kalaam, mark it EVALUATED
+    // Verify the coordinator's id is a real DB record before using it as FK
+    const coordinatorId = session.user.id
+      ? (await db.user.findUnique({ where: { id: session.user.id }, select: { id: true } }))?.id ?? null
+      : null;
+    await db.kalaamEvalRequest.updateMany({
+      where: { userId, kalaamId, status: "PENDING" },
+      data: {
+        status: "EVALUATED",
+        evaluatorId: coordinatorId,
+        evaluatedAt: new Date(),
+        ranking: ranking ?? null,
+        voiceRange: voiceRange ?? null,
+        evalNotes: notes ?? null,
+      },
+    }).catch((e: unknown) => {
+      // Non-fatal — evaluation itself is already saved
+      console.warn("[evaluate POST] updateMany eval request failed:", e);
+    });
+
+    return NextResponse.json(evaluation, { status: 201 });
+  } catch (err) {
+    console.error("[evaluate POST]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Failed to save evaluation" },
+      { status: 500 }
+    );
   }
-
-  // Upsert: delete existing standalone eval for this userId+kalaamId, then create
-  await db.reciterEvaluation.deleteMany({
-    where: { sessionId: null, userId, kalaamId },
-  });
-
-  const evaluation = await db.reciterEvaluation.create({
-    data: {
-      sessionId: null,
-      userId,
-      kalaamId,
-      ranking: ranking ?? null,
-      voiceRange: voiceRange ?? null,
-      notes: notes ?? null,
-    },
-  });
-
-  return NextResponse.json(evaluation, { status: 201 });
 }
 
 // GET /api/kalaams/:id/evaluate?userId= — fetch standalone eval for a member

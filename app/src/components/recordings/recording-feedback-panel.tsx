@@ -30,33 +30,6 @@ interface Props {
   initialFeedbacks: Feedback[];
 }
 
-function StarRating({
-  value,
-  onChange,
-}: {
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <button
-          key={s}
-          type="button"
-          onClick={() => onChange(value === s ? null : s)}
-          className={`text-base leading-none transition-colors ${
-            value !== null && s <= value
-              ? "text-yellow-400"
-              : "text-muted-foreground/30 hover:text-yellow-400/60"
-          }`}
-        >
-          ★
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -76,7 +49,6 @@ export function RecordingFeedbackPanel({
   const [feedbacks, setFeedbacks] = useState<Feedback[]>(initialFeedbacks);
   const [showCompose, setShowCompose] = useState(false);
   const [comment, setComment] = useState("");
-  const [ranking, setRanking] = useState<number | null>(null);
   const [audioFileKey, setAudioFileKey] = useState<string | null>(null);
   const [audioFileName, setAudioFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -171,7 +143,6 @@ export function RecordingFeedbackPanel({
 
   function resetCompose() {
     setComment("");
-    setRanking(null);
     setAudioFileKey(null);
     setAudioFileName(null);
     setShowCompose(false);
@@ -191,7 +162,6 @@ export function RecordingFeedbackPanel({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             comment: comment.trim() || null,
-            ranking,
             audioFileKey,
             audioFileName,
           }),
@@ -246,12 +216,6 @@ export function RecordingFeedbackPanel({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   <span className="font-semibold text-foreground">{f.author.displayName}</span>
-                  {f.ranking !== null && (
-                    <span className="text-yellow-400 text-xs">
-                      {"★".repeat(f.ranking)}
-                      <span className="text-muted-foreground/30">{"★".repeat(5 - f.ranking)}</span>
-                    </span>
-                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">{formatDate(f.createdAt)}</span>
@@ -299,8 +263,6 @@ export function RecordingFeedbackPanel({
             </Button>
           ) : (
             <div className="rounded-md border border-border p-3 space-y-3 bg-muted/10">
-              <StarRating value={ranking} onChange={setRanking} />
-
               <Textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
