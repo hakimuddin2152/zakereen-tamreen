@@ -77,6 +77,32 @@ export async function POST(req: NextRequest) {
     sessionPartyId = myParty?.id ?? null;
   }
 
+  // Check prerequisites — each attendee must have lehenDone + hifzDone for every kalaam.
+  // Coordinators (GOD/MC/PC) are exempt.
+  const nonCoordAttendees = await db.user.findMany({
+    where: { id: { in: attendeeIds }, role: { notIn: ["GOD", "MC", "PC"] } },
+    select: { id: true, displayName: true },
+  });
+
+  const missingPrereqs: string[] = [];
+  for (const attendee of nonCoordAttendees) {
+    for (const kalaamId of kalaamIds) {
+      const prereq = await db.kalaamPrerequisite.findUnique({
+        where: { userId_kalaamId: { userId: attendee.id, kalaamId } },
+        select: { lehenDone: true, hifzDone: true },
+      });
+      if (!prereq || !prereq.lehenDone || !prereq.hifzDone) {
+        const kalaam = await db.kalaam.findUnique({ where: { id: kalaamId }, select: { title: true } });
+        missingPrereqs.push(
+          `${attendee.displayName} has not completed prerequisites for "${kalaam?.title ?? kalaamId}"`
+        );
+      }
+    }
+  }
+  if (missingPrereqs.length > 0) {
+    return NextResponse.json({ error: "Prerequisites not met", details: missingPrereqs }, { status: 422 });
+  }
+
   const newSession = await db.session.create({
     data: {
       date: new Date(date),

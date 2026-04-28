@@ -46,6 +46,39 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { date, kalaamIds, notes, attendeeIds } = parsed.data;
 
+  // If attendees are changing, check prerequisites against the final kalaam list.
+  if (attendeeIds && attendeeIds.length > 0) {
+    // Resolve which kalaams will be in the session after this update.
+    const finalKalaamIds = kalaamIds ?? (
+      await db.sessionKalaam.findMany({ where: { sessionId: id }, select: { kalaamId: true } })
+    ).map((sk) => sk.kalaamId);
+
+    // Coordinators (GOD/MC/PC) are exempt from prerequisite checks.
+    const nonCoordAttendees = await db.user.findMany({
+      where: { id: { in: attendeeIds }, role: { notIn: ["GOD", "MC", "PC"] } },
+      select: { id: true, displayName: true },
+    });
+
+    const missingPrereqs: string[] = [];
+    for (const attendee of nonCoordAttendees) {
+      for (const kalaamId of finalKalaamIds) {
+        const prereq = await db.kalaamPrerequisite.findUnique({
+          where: { userId_kalaamId: { userId: attendee.id, kalaamId } },
+          select: { lehenDone: true, hifzDone: true },
+        });
+        if (!prereq || !prereq.lehenDone || !prereq.hifzDone) {
+          const kalaam = await db.kalaam.findUnique({ where: { id: kalaamId }, select: { title: true } });
+          missingPrereqs.push(
+            `${attendee.displayName} has not completed prerequisites for "${kalaam?.title ?? kalaamId}"`
+          );
+        }
+      }
+    }
+    if (missingPrereqs.length > 0) {
+      return NextResponse.json({ error: "Prerequisites not met", details: missingPrereqs }, { status: 422 });
+    }
+  }
+
   const updated = await db.$transaction(async (tx) => {
     if (kalaamIds) {
       await tx.sessionKalaam.deleteMany({ where: { sessionId: id } });

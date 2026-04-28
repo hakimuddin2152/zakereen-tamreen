@@ -94,7 +94,15 @@ export function SessionActions({
           attendeeIds: Array.from(editAttendees),
         }),
       });
-      if (!res.ok) throw new Error("Failed to save");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (err.details && Array.isArray(err.details)) {
+          err.details.forEach((d: string) => toast.error(d));
+        } else {
+          toast.error(err.error || "Failed to update session");
+        }
+        return;
+      }
       toast.success("Session updated");
       setEditOpen(false);
       router.refresh();
