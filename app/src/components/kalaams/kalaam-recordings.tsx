@@ -18,6 +18,8 @@ interface Feedback {
   authorId: string;
   comment: string | null;
   ranking: number | null;
+  audioFileKey: string | null;
+  audioFileName: string | null;
   createdAt: string | Date;
   author: FeedbackAuthor;
 }

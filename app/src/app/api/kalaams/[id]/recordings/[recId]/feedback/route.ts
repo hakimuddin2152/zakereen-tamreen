@@ -7,8 +7,12 @@ import { z } from "zod";
 type Params = { params: Promise<{ id: string; recId: string }> };
 
 const feedbackSchema = z.object({
-  comment: z.string().min(1, "Comment is required").max(2000),
+  comment: z.string().max(2000).nullable().optional(),
   ranking: z.number().int().min(1).max(5).nullable().optional(),
+  audioFileKey: z.string().max(500).nullable().optional(),
+  audioFileName: z.string().max(200).nullable().optional(),
+}).refine((d) => (d.comment?.trim() || d.audioFileKey), {
+  message: "Provide a comment or an audio clip",
 });
 
 // GET — list all feedback for a recording (owner + coordinators)
@@ -19,7 +23,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id: kalaamId, recId: recordingId } = await params;
   const userId = session.user.id!;
 
-  // Verify the recording exists and belongs to this kalaam
   const recording = await db.kalaamRecording.findUnique({
     where: { id: recordingId },
     select: { id: true, kalaamId: true, userId: true },
@@ -28,7 +31,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Only the owner or a coordinator can view feedback
+  // Owner or coordinator can view feedback
   const canView = recording.userId === userId || isCoordinator(session.user.role);
   if (!canView) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -41,7 +44,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json(feedbacks);
 }
 
-// POST — submit/update feedback for a recording (coordinators only)
+// POST — append a new feedback message (coordinators only)
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -72,17 +75,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const feedback = await db.recordingFeedback.upsert({
-    where: { recordingId_authorId: { recordingId, authorId } },
-    create: {
+  const feedback = await db.recordingFeedback.create({
+    data: {
       recordingId,
       authorId,
-      comment: parsed.data.comment,
+      comment: parsed.data.comment ?? null,
       ranking: parsed.data.ranking ?? null,
-    },
-    update: {
-      comment: parsed.data.comment,
-      ranking: parsed.data.ranking ?? null,
+      audioFileKey: parsed.data.audioFileKey ?? null,
+      audioFileName: parsed.data.audioFileName ?? null,
     },
     include: { author: { select: { id: true, displayName: true, role: true } } },
   });
@@ -90,20 +90,28 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json(feedback, { status: 201 });
 }
 
-// DELETE — delete own feedback
+// DELETE — delete a specific feedback entry (own only, by ?feedbackId=...)
 export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { recId: recordingId } = await params;
   const authorId = session.user.id!;
+  const feedbackId = new URL(req.url).searchParams.get("feedbackId");
+
+  if (!feedbackId) return NextResponse.json({ error: "feedbackId required" }, { status: 400 });
 
   const existing = await db.recordingFeedback.findUnique({
-    where: { recordingId_authorId: { recordingId, authorId } },
-    select: { id: true },
+    where: { id: feedbackId },
+    select: { id: true, authorId: true, recordingId: true },
   });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!existing || existing.recordingId !== recordingId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (existing.authorId !== authorId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-  await db.recordingFeedback.delete({ where: { id: existing.id } });
+  await db.recordingFeedback.delete({ where: { id: feedbackId } });
   return new NextResponse(null, { status: 204 });
 }

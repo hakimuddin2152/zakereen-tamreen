@@ -35,7 +35,7 @@ export const createSessionSchema = z.object({
 export const updateSessionSchema = z.object({
   date: z.string().datetime({ offset: true }).or(z.string().date()).optional(),
   kalaamIds: z.array(z.string().min(1)).min(1).optional(),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000).nullable().optional(),
   attendeeIds: z.array(z.string().min(1)).optional(),
 });
 
@@ -82,7 +82,7 @@ export const updatePrerequisiteSchema = z.object({
 export const uploadRequestSchema = z.object({
   contentType: z.string(),
   contentLength: z.number().int().positive(),
-  context: z.enum(["session", "kalaam", "kalaamRecording", "kalaamPdf", "kalaamAudio"]),
+  context: z.enum(["session", "kalaam", "kalaamRecording", "kalaamPdf", "kalaamAudio", "recordingFeedback"]),
   sessionId: z.string().cuid().optional(),
   userId: z.string().cuid().optional(),
   kalaamId: z.string().cuid().optional(),

@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
   const { contentType, contentLength, context, sessionId, userId, kalaamId } = parsed.data;
   const role = session.user.role;
 
-  // Members can only upload their own practice recordings
-  if (!isCoordinator(role) && context !== "kalaamRecording") {
+  // Members can only upload their own practice recordings or feedback audio
+  if (!isCoordinator(role) && context !== "kalaamRecording" && context !== "recordingFeedback") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
     fileKey = `sessions/${sessionId}/${userId}/${randomUUID()}.${ext}`;
   } else if (context === "kalaamRecording" && kalaamId) {
     fileKey = `recordings/${kalaamId}/${currentUserId}/${randomUUID()}.${ext}`;
+  } else if (context === "recordingFeedback") {
+    fileKey = `feedback/${randomUUID()}.${ext}`;
   } else if (context === "kalaamPdf") {
     fileKey = kalaamId
       ? `pdf/${kalaamId}/${randomUUID()}.pdf`

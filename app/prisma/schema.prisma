@@ -199,18 +199,18 @@ model KalaamRecording {
 }
 
 model RecordingFeedback {
-  id          String   @id @default(cuid())
-  recordingId String
-  authorId    String
-  comment     String?
-  ranking     Int?     // 1–5 stars (optional)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  recordingId   String
+  authorId      String
+  comment       String?
+  ranking       Int?     // 1–5 stars (optional)
+  audioFileKey  String?
+  audioFileName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   recording KalaamRecording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
   author    User            @relation("FeedbackGiven", fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@unique([recordingId, authorId])
 }
 
 model KalaamRecordingShare {

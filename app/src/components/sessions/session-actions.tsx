@@ -89,7 +89,7 @@ export function SessionActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: new Date(editDate).toISOString(),
-          notes: editNotes || null,
+          notes: editNotes.trim() || null,
           kalaamIds: Array.from(editKalaams),
           attendeeIds: Array.from(editAttendees),
         }),
