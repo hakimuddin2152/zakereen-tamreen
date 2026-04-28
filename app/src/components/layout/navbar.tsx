@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -19,15 +19,18 @@ import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 
 interface NavbarProps {
   user: { name?: string | null; role: string; id: string };
+  unreadCount?: number;
 }
 
-export function Navbar({ user }: NavbarProps) {
+export function Navbar({ user, unreadCount = 0 }: NavbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const isGod = user.role === "GOD";
   const isPrivileged = isCoordinator(user.role);
   const isMC = can(user.role, Permission.PARTY_CREATE);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pwDialogOpen, setPwDialogOpen] = useState(false);
+  const [localUnread, setLocalUnread] = useState(unreadCount);
 
   const navLinks = [
     { href: "/kalaams", label: "Kalaams" },
@@ -73,6 +76,31 @@ export function Navbar({ user }: NavbarProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Notification bell (coordinators only) */}
+          {isPrivileged && (
+            <button
+              type="button"
+              className="relative flex items-center justify-center w-9 h-9 rounded-md hover:bg-accent transition-colors"
+              aria-label="Notifications"
+              onClick={async () => {
+                router.push("/notifications");
+                if (localUnread > 0) {
+                  setLocalUnread(0);
+                  await fetch("/api/notifications", { method: "PATCH" }).catch(() => {});
+                }
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {localUnread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+                  {localUnread > 99 ? "99+" : localUnread}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

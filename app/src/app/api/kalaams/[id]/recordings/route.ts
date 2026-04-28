@@ -67,6 +67,32 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
+  // Notify the user's party coordinator (if they are a PM/IM with an active PC)
+  if (!isCoordinator(session.user.role)) {
+    const uploader = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        displayName: true,
+        partyId: true,
+        party: { select: { coordinatorId: true } },
+      },
+    });
+    const koordinatorId = uploader?.party?.coordinatorId;
+    if (koordinatorId) {
+      const kalaamTitle = (await db.kalaam.findUnique({ where: { id: kalaamId }, select: { title: true } }))?.title ?? "a kalaam";
+      await db.notification.create({
+        data: {
+          userId: koordinatorId,
+          type: "RECORDING_UPLOADED",
+          message: `${uploader?.displayName ?? "A member"} uploaded a recording for "${kalaamTitle}"`,
+          kalaamId,
+          recordingId: recording.id,
+          fromUserId: userId,
+        },
+      }).catch(() => {}); // best-effort — never fail the upload
+    }
+  }
+
   return NextResponse.json(recording, { status: 201 });
 }
 

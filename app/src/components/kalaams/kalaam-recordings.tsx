@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AudioPlayer } from "@/components/evaluations/audio-player";
 import { RecordingFeedbackPanel } from "@/components/recordings/recording-feedback-panel";
+import { ShareRecordingDialog } from "@/components/recordings/share-recording-dialog";
 
 interface FeedbackAuthor {
   id: string;
@@ -24,18 +25,26 @@ interface Feedback {
   author: FeedbackAuthor;
 }
 
+interface Member {
+  id: string;
+  displayName: string;
+  username: string;
+}
+
 interface Recording {
   id: string;
   fileKey: string;
   fileName: string;
   createdAt: string | Date;
   feedbacks?: Feedback[];
+  sharedWith?: string[]; // userIds already shared with
 }
 
 interface Props {
   kalaamId: string;
   initialRecordings: Recording[];
   isCoordinator?: boolean;
+  partyMembers?: Member[];
 }
 
 function formatDate(d: string | Date) {
@@ -50,7 +59,7 @@ function formatTime(s: number) {
   return `${m}:${sec}`;
 }
 
-export function KalaamRecordings({ kalaamId, initialRecordings, isCoordinator = false }: Props) {
+export function KalaamRecordings({ kalaamId, initialRecordings, isCoordinator = false, partyMembers = [] }: Props) {
   const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -175,13 +184,28 @@ export function KalaamRecordings({ kalaamId, initialRecordings, isCoordinator = 
                 <span className="text-xs text-muted-foreground">
                   #{recordings.length - i} · {formatDate(r.createdAt)}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(r.id)}
-                  className="text-destructive text-xs hover:text-destructive/80"
-                >
-                  Remove
-                </button>
+                <div className="flex items-center gap-2">
+                  {partyMembers.length > 0 && (
+                    <ShareRecordingDialog
+                      kalaamId={kalaamId}
+                      recordingId={r.id}
+                      members={partyMembers}
+                      sharedWith={r.sharedWith ?? []}
+                      trigger={
+                        <button type="button" className="text-xs text-muted-foreground hover:text-foreground">
+                          Share{(r.sharedWith?.length ?? 0) > 0 ? ` (${r.sharedWith!.length})` : ""}
+                        </button>
+                      }
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(r.id)}
+                    className="text-destructive text-xs hover:text-destructive/80"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
               <AudioPlayer fileKey={r.fileKey} fileName={r.fileName} />
               <RecordingFeedbackPanel

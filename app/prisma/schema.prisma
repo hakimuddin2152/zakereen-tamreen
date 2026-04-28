@@ -80,6 +80,8 @@ model User {
   majlisAssignments MajlisKalaamMember[]
   sessionsCreated  Session[]           @relation("SessionsCreated")
   feedbacksGiven   RecordingFeedback[] @relation("FeedbackGiven")
+  notifications    Notification[]      @relation("NotificationsReceived")
+  notificationsSent Notification[]     @relation("NotificationsSent")
 }
 
 // ── Kalaam ─────────────────────────────────────────────────────────────────
@@ -164,7 +166,7 @@ model KalaamPrerequisite {
 
 model ReciterEvaluation {
   id            String   @id @default(cuid())
-  sessionId     String
+  sessionId     String?  // null = standalone (not session-bound)
   userId        String
   kalaamId      String?
   ranking       Int?
@@ -175,9 +177,9 @@ model ReciterEvaluation {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id])
-  kalaam  Kalaam? @relation(fields: [kalaamId], references: [id])
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id])
+  kalaam  Kalaam?  @relation(fields: [kalaamId], references: [id])
 
   @@unique([sessionId, userId, kalaamId])
 }
@@ -282,5 +284,22 @@ model MajlisKalaamMember {
   user         User         @relation(fields: [userId], references: [id])
 
   @@unique([majlisKalaamId, userId])
+}
+
+// ── Notifications ──────────────────────────────────────────────────────────
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String   // recipient (coordinator)
+  type        String   // e.g. "RECORDING_UPLOADED"
+  message     String
+  kalaamId    String?
+  recordingId String?
+  fromUserId  String?  // who triggered it
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user     User  @relation("NotificationsReceived", fields: [userId], references: [id], onDelete: Cascade)
+  fromUser User? @relation("NotificationsSent", fields: [fromUserId], references: [id], onDelete: SetNull)
 }
 

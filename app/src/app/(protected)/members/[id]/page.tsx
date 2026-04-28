@@ -35,6 +35,7 @@ export default async function MemberProfilePage({ params }: Props) {
     include: {
       party: { select: { name: true } },
       evaluations: {
+        where: { sessionId: { not: null } },
         orderBy: { session: { date: "desc" } },
         include: {
           session: {
@@ -163,23 +164,15 @@ export default async function MemberProfilePage({ params }: Props) {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {member.evaluations.map((ev: {
-              id: string;
-              ranking: number | null;
-              voiceRange: string | null;
-              audioFileKey: string | null;
-              audioFileName: string | null;
-              notes: string | null;
-              session: { date: Date; kalaams: { kalaam: { id: string; title: string; category: string } }[] };
-            }) => (
+            {member.evaluations.filter((ev) => ev.session !== null).map((ev) => (
               <div key={ev.id} className="px-5 py-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span className="text-muted-foreground text-xs font-mono">
-                        {formatDate(ev.session.date)}
+                        {formatDate(ev.session!.date)}
                       </span>
-                      {ev.session.kalaams.slice(0, 2).map((sk) => (
+                      {ev.session!.kalaams.slice(0, 2).map((sk) => (
                         <Badge key={sk.kalaam.id} variant="secondary" className="text-xs">
                           {sk.kalaam.category}
                         </Badge>
@@ -191,7 +184,7 @@ export default async function MemberProfilePage({ params }: Props) {
                       )}
                     </div>
                     <p className="text-foreground font-medium">
-                      {ev.session.kalaams.map((sk) => sk.kalaam.title).join(" · ")}
+                      {ev.session!.kalaams.map((sk) => sk.kalaam.title).join(" · ")}
                     </p>
                     <div className="mt-1 flex items-center gap-3">
                       <StarRating value={ev.ranking} />

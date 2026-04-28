@@ -34,7 +34,7 @@ export default async function KalaamDetailPage({ params }: Props) {
   const role = session?.user?.role ?? "";
   const isPrivileged = can(role, Permission.KALAAM_EDIT);
 
-  const [kalaam, prereq, adminData, myRecordings, pendingEval, allMemberRecordings] = await Promise.all([
+  const [kalaam, prereq, adminData, myRecordings, pendingEval, allMemberRecordings, myStandaloneEval] = await Promise.all([
     db.kalaam.findUnique({
       where: { id },
       include: {
@@ -94,6 +94,11 @@ export default async function KalaamDetailPage({ params }: Props) {
           },
         })
       : Promise.resolve(null),
+    // Member's own standalone evaluation for this kalaam (given by coordinator)
+    db.reciterEvaluation.findFirst({
+      where: { sessionId: null, userId, kalaamId: id },
+      select: { id: true, ranking: true, voiceRange: true, notes: true, createdAt: true },
+    }),
   ]);
 
   if (!kalaam) notFound();
@@ -102,6 +107,37 @@ export default async function KalaamDetailPage({ params }: Props) {
   const allMembers = adminData?.[0] ?? [];
   const allPrereqs = adminData?.[1] ?? [];
   const userIsCoordinator = isCoordinator(role);
+
+  // Fetch party members for sharing + existing shares per recording
+  const currentUser = await db.user.findUnique({
+    where: { id: userId },
+    select: { partyId: true },
+  });
+  const [partyMembers, recordingShares] = await Promise.all([
+    currentUser?.partyId
+      ? db.user.findMany({
+          where: { partyId: currentUser.partyId, id: { not: userId }, isActive: true },
+          select: { id: true, displayName: true, username: true },
+          orderBy: { displayName: "asc" },
+        })
+      : Promise.resolve([]),
+    myRecordings.length > 0
+      ? db.kalaamRecordingShare.findMany({
+          where: { recordingId: { in: myRecordings.map((r) => r.id) } },
+          select: { recordingId: true, sharedWithId: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  // Build a map: recordingId → sharedWithIds[]
+  const sharesByRecordingId = new Map<string, string[]>();
+  for (const s of recordingShares) {
+    if (!sharesByRecordingId.has(s.recordingId)) sharesByRecordingId.set(s.recordingId, []);
+    sharesByRecordingId.get(s.recordingId)!.push(s.sharedWithId);
+  }
+  const myRecordingsWithShares = myRecordings.map((r) => ({
+    ...r,
+    sharedWith: sharesByRecordingId.get(r.id) ?? [],
+  }));
 
   // Build member-grouped recordings for coordinator view
   type MemberRecRaw = NonNullable<typeof allMemberRecordings>[number];
@@ -113,7 +149,21 @@ export default async function KalaamDetailPage({ params }: Props) {
     }
     memberGroupMap.get(key)!.recordings.push(rec);
   }
-  const memberRecordingGroups = Array.from(memberGroupMap.values());
+
+  // Fetch standalone evals for all unique members visible to the coordinator
+  const memberIds = Array.from(memberGroupMap.keys());
+  const standaloneEvals = userIsCoordinator && memberIds.length > 0
+    ? await db.reciterEvaluation.findMany({
+        where: { sessionId: null, kalaamId: id, userId: { in: memberIds } },
+        select: { id: true, userId: true, ranking: true, voiceRange: true, notes: true },
+      })
+    : [];
+  const evalByMemberId = new Map(standaloneEvals.map((e) => [e.userId, e]));
+
+  const memberRecordingGroups = Array.from(memberGroupMap.values()).map((g) => ({
+    ...g,
+    eval: evalByMemberId.get(g.memberId) ?? null,
+  }));
 
   return (
     <div className="max-w-2xl">
@@ -199,6 +249,25 @@ export default async function KalaamDetailPage({ params }: Props) {
             isPending={pendingEval !== null}
           />
         </div>
+        {myStandaloneEval && (
+          <div className="px-5 pb-4">
+            <div className="rounded-md border border-primary/30 bg-primary/5 px-4 py-3 space-y-1">
+              <p className="text-sm font-medium text-foreground">Coordinator Evaluation</p>
+              {myStandaloneEval.ranking != null && (
+                <p className="text-yellow-400 text-sm">
+                  {"★".repeat(myStandaloneEval.ranking)}
+                  <span className="text-muted-foreground/30">{"★".repeat(5 - myStandaloneEval.ranking)}</span>
+                </p>
+              )}
+              {myStandaloneEval.voiceRange && (
+                <p className="text-xs text-muted-foreground">Voice range: {myStandaloneEval.voiceRange}</p>
+              )}
+              {myStandaloneEval.notes && (
+                <p className="text-xs text-muted-foreground">{myStandaloneEval.notes}</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* My practice recordings */}
@@ -209,7 +278,12 @@ export default async function KalaamDetailPage({ params }: Props) {
             Upload your practice audio — last 3 are kept
           </p>
         </div>
-        <KalaamRecordings kalaamId={id} initialRecordings={myRecordings} isCoordinator={false} />
+        <KalaamRecordings
+          kalaamId={id}
+          initialRecordings={myRecordingsWithShares}
+          isCoordinator={false}
+          partyMembers={partyMembers}
+        />
       </div>
 
       {/* Coordinator: all members' recordings for this kalaam */}
