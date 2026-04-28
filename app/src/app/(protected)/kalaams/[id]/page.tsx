@@ -13,6 +13,7 @@ import { KalaamRecordings } from "@/components/kalaams/kalaam-recordings";
 import { PdfViewer } from "@/components/kalaams/pdf-viewer";
 import { isCoordinator, can, Permission } from "@/lib/permissions";
 import { EvalRequestButton } from "@/components/evaluations/eval-request-button";
+import { KalaamMemberRecordings } from "@/components/kalaams/kalaam-member-recordings";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -33,7 +34,7 @@ export default async function KalaamDetailPage({ params }: Props) {
   const role = session?.user?.role ?? "";
   const isPrivileged = can(role, Permission.KALAAM_EDIT);
 
-  const [kalaam, prereq, adminData, myRecordings, pendingEval] = await Promise.all([
+  const [kalaam, prereq, adminData, myRecordings, pendingEval, allMemberRecordings] = await Promise.all([
     db.kalaam.findUnique({
       where: { id },
       include: {
@@ -79,6 +80,20 @@ export default async function KalaamDetailPage({ params }: Props) {
       where: { userId, kalaamId: id, status: "PENDING" },
       select: { id: true },
     }),
+    // Coordinators: fetch all other members' recordings for this kalaam
+    isCoordinator(role)
+      ? db.kalaamRecording.findMany({
+          where: { kalaamId: id, userId: { not: userId } },
+          orderBy: [{ userId: "asc" }, { createdAt: "desc" }],
+          include: {
+            user: { select: { id: true, displayName: true } },
+            feedbacks: {
+              orderBy: { createdAt: "asc" },
+              include: { author: { select: { id: true, displayName: true, role: true } } },
+            },
+          },
+        })
+      : Promise.resolve(null),
   ]);
 
   if (!kalaam) notFound();
@@ -87,6 +102,18 @@ export default async function KalaamDetailPage({ params }: Props) {
   const allMembers = adminData?.[0] ?? [];
   const allPrereqs = adminData?.[1] ?? [];
   const userIsCoordinator = isCoordinator(role);
+
+  // Build member-grouped recordings for coordinator view
+  type MemberRecRaw = NonNullable<typeof allMemberRecordings>[number];
+  const memberGroupMap = new Map<string, { memberId: string; memberName: string; recordings: MemberRecRaw[] }>();
+  for (const rec of allMemberRecordings ?? []) {
+    const key = rec.user.id;
+    if (!memberGroupMap.has(key)) {
+      memberGroupMap.set(key, { memberId: rec.user.id, memberName: rec.user.displayName, recordings: [] });
+    }
+    memberGroupMap.get(key)!.recordings.push(rec);
+  }
+  const memberRecordingGroups = Array.from(memberGroupMap.values());
 
   return (
     <div className="max-w-2xl">
@@ -184,6 +211,19 @@ export default async function KalaamDetailPage({ params }: Props) {
         </div>
         <KalaamRecordings kalaamId={id} initialRecordings={myRecordings} isCoordinator={false} />
       </div>
+
+      {/* Coordinator: all members' recordings for this kalaam */}
+      {userIsCoordinator && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden mb-6">
+          <div className="px-5 py-3 border-b border-border">
+            <h2 className="text-foreground font-semibold">Member Recordings</h2>
+            <p className="text-muted-foreground text-xs mt-0.5">
+              Practice recordings uploaded by members — give feedback on each
+            </p>
+          </div>
+          <KalaamMemberRecordings kalaamId={id} memberGroups={memberRecordingGroups} />
+        </div>
+      )}
 
       {/* Sessions */}
       <div className="bg-card border border-border rounded-lg overflow-hidden">
