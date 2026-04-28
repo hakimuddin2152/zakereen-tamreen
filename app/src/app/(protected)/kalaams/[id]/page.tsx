@@ -182,7 +182,7 @@ export default async function KalaamDetailPage({ params }: Props) {
             Upload your practice audio — last 3 are kept
           </p>
         </div>
-        <KalaamRecordings kalaamId={id} initialRecordings={myRecordings} isCoordinator={userIsCoordinator} />
+        <KalaamRecordings kalaamId={id} initialRecordings={myRecordings} isCoordinator={false} />
       </div>
 
       {/* Sessions */}

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { AudioPlayer } from "@/components/evaluations/audio-player";
 import { ReciterActions } from "@/components/reciters/reciter-actions";
 import { isCoordinator } from "@/lib/permissions";
+import { MemberRecordingsList } from "@/components/members/member-recordings-list";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -47,6 +48,40 @@ export default async function MemberProfilePage({ params }: Props) {
   });
 
   if (!member) notFound();
+
+  // Fetch practice recordings for this member, with feedback
+  const rawRecordings = await db.kalaamRecording.findMany({
+    where: { userId: id },
+    orderBy: { createdAt: "desc" },
+    include: {
+      kalaam: { select: { id: true, title: true, category: true } },
+      feedbacks: {
+        orderBy: { createdAt: "asc" },
+        include: { author: { select: { id: true, displayName: true, role: true } } },
+      },
+    },
+  });
+
+  // Group recordings by kalaam
+  const kalaamGroupMap = new Map<string, {
+    kalaamId: string;
+    kalaamTitle: string;
+    kalaamCategory: string;
+    recordings: (typeof rawRecordings)[number][];
+  }>();
+  for (const rec of rawRecordings) {
+    const key = rec.kalaam.id;
+    if (!kalaamGroupMap.has(key)) {
+      kalaamGroupMap.set(key, {
+        kalaamId: rec.kalaam.id,
+        kalaamTitle: rec.kalaam.title,
+        kalaamCategory: rec.kalaam.category,
+        recordings: [],
+      });
+    }
+    kalaamGroupMap.get(key)!.recordings.push(rec);
+  }
+  const recordingGroups = Array.from(kalaamGroupMap.values());
 
   const totalRated = member.evaluations.filter((e: { ranking: number | null }) => e.ranking != null).length;
   const avgRanking = totalRated
@@ -99,6 +134,20 @@ export default async function MemberProfilePage({ params }: Props) {
             </span>
           </div>
         )}
+      </div>
+
+      <div className="bg-card border border-border rounded-lg overflow-hidden mb-6">
+        <div className="px-5 py-3 border-b border-border">
+          <h2 className="text-foreground font-semibold">Practice Recordings</h2>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            {isAdmin ? "Listen and give feedback on each recording" : "Your uploaded practice audio"}
+          </p>
+        </div>
+        <MemberRecordingsList
+          memberId={id}
+          groups={recordingGroups}
+          isCoordinator={isAdmin}
+        />
       </div>
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
